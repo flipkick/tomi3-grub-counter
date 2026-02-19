@@ -7,8 +7,8 @@ Reads the **grub counter** from `.save` files of *Tales of Monkey Island - Chapt
 ## Usage
 
 ```
-read_grub_counter.exe                   # all saves in the default game directory
-read_grub_counter.exe <path>.save       # single file
+python read_grub_counter.py                   # all saves in the default game directory
+python read_grub_counter.py <path>.save       # single file
 ```
 
 **Default save directory:**
