@@ -1,6 +1,6 @@
-# Tales of Monkey Island 3 — Grub Counter Reader
+# Tales of Monkey Island 3 - Grub Counter Reader
 
-Reads the **grub counter** from `.save` files of *Tales of Monkey Island — Chapter 3: Lair of the Leviathan*.
+Reads the **grub counter** from `.save` files of *Tales of Monkey Island - Chapter 3: Lair of the Leviathan*.
 
 ---
 
@@ -24,7 +24,7 @@ C:\Users\<name>\Documents\Telltale Games\Tales of Monkey Island 3\
 |---|---|
 | Magic bytes (raw) | `AA DE AF 64` |
 | Encoding | XOR `0xFF` (bitwise NOT) |
-| Structure | `[4-byte LE length][ASCII key][data]` — repeated entries |
+| Structure | `[4-byte LE length][ASCII key][data]` - repeated entries |
 
 ### Grub Counter Signature
 
@@ -49,4 +49,10 @@ The format was reverse-engineered using x32dbg attached to `monkeyisland103.exe`
 
 ## Author
 
-flip — reverse engineering & tool development
+flip - reverse engineering & tool development
+
+---
+
+## License
+
+[MIT](LICENSE)
