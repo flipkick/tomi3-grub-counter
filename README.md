@@ -126,7 +126,7 @@ Reversed using x32dbg attached to `monkeyisland103.exe` (32-bit, TellTale Tool e
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
 
 ## Author
 
