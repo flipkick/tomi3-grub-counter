@@ -10,14 +10,12 @@ thewoofs turned this into something even bigger: the **Bon-a-thon**, a charity s
 
 Go give him a follow: **<https://twitch.tv/thewoofs>**
 
----
+# Content
 
 Two tools for reading the **grub counter** from *Tales of Monkey Island: Chapter 3: Lair of the Leviathan*:
 
-`extract_grub_counter_from_save.py` -> Read counter from a `.save` file
-`monitor_grub_counter.py` -> Read counter live from the running game (for OBS etc.)
-
----
+- `extract_grub_counter_from_save.py` -> Read counter from a `.save` file
+- `monitor_grub_counter.py` -> Read counter live from the running game (for OBS etc.)
 
 ## monitor_grub_counter.py - Live RAM Reader
 
@@ -37,7 +35,7 @@ python monitor_grub_counter.py --once            # print counter once and exit
 python monitor_grub_counter.py --once --verbose  # same, with debug output
 ```
 
-In `--watch` mode the current counter value is written to `grub_counter.txt` in the working directory whenever it changes. Point an OBS Text (GDI+) source at that file.
+The current counter value is written to `grub_counter.txt` in the working directory whenever it changes. Point an OBS Text source at that file.
 
 ### How It Works
 
@@ -67,9 +65,7 @@ Active nodes are distinguished by the three fields immediately before the signat
 
 After the locality filter, two active candidates typically remain: the real game counter and a `nGrubsCollected=0` entry in the engine VM (which also has valid nearby pointers). When both have the same locality score, the one with the **higher value** wins. When the real counter is also 0, both candidates have value 0, so the result is correct either way.
 
----
-
-## read_grub_counter - Save File Reader
+## extract_grub_counter_from_save.py - Save File Reader
 
 Reads the counter from a `.save` file without the game running.
 
@@ -101,8 +97,6 @@ The counter is located by searching for a fixed 16-byte signature in the decoded
 
 Followed by the counter as a **DWORD (uint32, Little-Endian)**.
 
----
-
 ## Reverse Engineering Notes
 
 **Caveat: parts of this are educated guesses. Assume nothing, verify everything.**
@@ -130,13 +124,9 @@ Reversed using x32dbg attached to `monkeyisland103.exe` (32-bit, TellTale Tool e
 
 **Multiple copies problem** At any point 8-10 nodes matching the signature exist in RAM simultaneously: active entry, GC history from previous loads, hash-colliding variables from other tables, and a second engine Lua VM that always holds `nGrubsCollected=0`. The locality heuristic (fields at -0x10/-0x0C/-0x08 point within +/-4 MB) cleanly separates active from dead nodes. The persistent engine-VM zero entry is eliminated by the highest-value tiebreaker.
 
----
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
----
 
 ## Author
 
