@@ -23,12 +23,6 @@ Two tools for reading the **grub counter** from *Tales of Monkey Island: Chapter
 pip install tomi3-grub-counter
 ```
 
-Or directly from GitHub:
-
-```
-pip install git+https://github.com/flipcoder/tomi3-grub-counter.git
-```
-
 After installation, `monitor_grub_counter` and `extract_grub_counter_from_save` are available as commands directly.
 
 ## monitor_grub_counter.py - Live RAM Reader
