@@ -1,0 +1,265 @@
+"""
+Tales of Monkey Island 3 - Live Grub Counter Reader (RAM)
+Reads the grub counter directly from the running game process.
+
+Strategy:
+  1. Scan all readable memory for the nGrubsCollected node signature:
+       A1 5A 21 97  (hash1, LE)
+       53 C0 0E 51  (hash2, LE)
+       5C 8F 8D 00  (Int type descriptor, LE)
+     Counter DWORD follows at +0x0C from hash1 start.
+
+  2. Multiple copies exist (GC history). Filter by "locality" heuristic:
+     The ACTIVE node has 1-3 non-null fields at offsets -0x10, -0x0C, -0x08
+     (relative to hash1 start) that are HEAP POINTERS pointing nearby
+     i.e. within +/- 4MB of the node itself. Dead nodes have either
+     all-zero or have unrelated values there (e.g. 0x11FBxxxx).
+
+  3. Among active candidates, prefer the one whose nearby-pointer fields
+     are non-zero. If tie, prefer lowest-address (most recently allocated
+     tables tend to be at higher addresses in this engine. Actually we
+     just take the one with valid locality).
+
+Usage:
+  python monitor_grub_counter.py            -> poll every second, write to grub_counter.txt
+  python monitor_grub_counter.py --once     -> print counter once
+  python monitor_grub_counter.py --verbose  -> same, with debug output
+"""
+
+import struct
+import sys
+import time
+import ctypes
+import ctypes.wintypes
+
+# Node signature: hash1 + hash2 + type descriptor (12 bytes starting at hash1)
+SIGNATURE = bytes.fromhex('A15A219753C00E515C8F8D00')
+
+# Counter DWORD is at +0x0C from hash1 start
+COUNTER_OFFSET = 0x0C
+
+# Plausible counter range (never negative, max ever seen ~200k)
+COUNTER_MAX = 200_000
+
+# Locality check offsets (relative to hash1 start): fields that hold
+# nearby heap pointers in the active node
+LOCALITY_OFFSETS = [-0x10, -0x0C, -0x08]
+LOCALITY_MAX_DELTA = 4 * 1024 * 1024  # 4 MB, active node pointers stay close
+
+PROCESS_NAME = "monkeyisland103.exe"
+OUTPUT_FILE = "grub_counter.txt"
+POLL_INTERVAL = 1.0  # seconds
+
+VERBOSE = False
+
+# Windows API
+kernel32 = ctypes.windll.kernel32
+PROCESS_VM_READ = 0x0010
+PROCESS_QUERY_INFORMATION = 0x0400
+
+
+class MEMORY_BASIC_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("BaseAddress",       ctypes.c_void_p),
+        ("AllocationBase",    ctypes.c_void_p),
+        ("AllocationProtect", ctypes.wintypes.DWORD),
+        ("RegionSize",        ctypes.c_size_t),
+        ("State",             ctypes.wintypes.DWORD),
+        ("Protect",           ctypes.wintypes.DWORD),
+        ("Type",              ctypes.wintypes.DWORD),
+    ]
+
+
+MEM_COMMIT   = 0x1000
+PAGE_NOACCESS = 0x01
+PAGE_GUARD    = 0x100
+
+
+def find_pid(name):
+    import subprocess
+    out = subprocess.check_output(
+        ["tasklist", "/FI", f"IMAGENAME eq {name}", "/FO", "CSV", "/NH"],
+        text=True
+    )
+    for line in out.splitlines():
+        parts = [p.strip('"') for p in line.split('","')]
+        if parts and parts[0].lower() == name.lower():
+            return int(parts[1])
+    return None
+
+
+def open_process(pid):
+    handle = kernel32.OpenProcess(
+        PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, False, pid
+    )
+    if not handle:
+        raise OSError(f"OpenProcess failed (pid={pid})")
+    return handle
+
+
+def read_memory(handle, address, size):
+    buf = ctypes.create_string_buffer(size)
+    read = ctypes.c_size_t(0)
+    ok = kernel32.ReadProcessMemory(
+        handle, ctypes.c_void_p(address), buf, size, ctypes.byref(read)
+    )
+    if not ok or read.value == 0:
+        return None
+    return buf.raw[:read.value]
+
+
+def iter_readable_regions(handle):
+    """Yield (base_address, size) for all readable committed pages."""
+    mbi = MEMORY_BASIC_INFORMATION()
+    addr = 0
+    while True:
+        ret = kernel32.VirtualQueryEx(
+            handle, ctypes.c_void_p(addr),
+            ctypes.byref(mbi), ctypes.sizeof(mbi)
+        )
+        if not ret:
+            break
+        if (mbi.State == MEM_COMMIT and
+                not (mbi.Protect & PAGE_NOACCESS) and
+                not (mbi.Protect & PAGE_GUARD)):
+            yield mbi.BaseAddress, mbi.RegionSize
+        addr = (mbi.BaseAddress or 0) + mbi.RegionSize
+        if addr >= 0xFFFFFFFF:
+            break
+
+
+def count_local_pointers(data, region_base, idx, node_addr):
+    """
+    Count how many of the fields at offsets -0x10, -0x0C, -0x08 from hash1
+    contain a value that looks like a nearby heap pointer (within 4MB of node).
+    """
+    count = 0
+    for rel in LOCALITY_OFFSETS:
+        field_idx = idx + rel
+        if field_idx < 0 or field_idx + 4 > len(data):
+            continue
+        val = struct.unpack_from('<I', data, field_idx)[0]
+        if val == 0:
+            continue
+        # Must be a plausible heap address (not in EXE/stack/kernel range)
+        if val < 0x01000000 or val > 0x7FFFFFFF:
+            continue
+        # Must be close to the node itself
+        if abs(val - node_addr) <= LOCALITY_MAX_DELTA:
+            count += 1
+    return count
+
+
+def scan_for_counter(handle):
+    """
+    Scan all readable memory for nGrubsCollected nodes.
+    Returns the counter value from the active node, or None.
+    """
+    # List of (node_addr, value, local_ptr_count)
+    candidates = []
+
+    for base, size in iter_readable_regions(handle):
+        data = read_memory(handle, base, size)
+        if not data:
+            continue
+
+        offset = 0
+        while True:
+            idx = data.find(SIGNATURE, offset)
+            if idx == -1:
+                break
+            offset = idx + 1
+
+            # Need at least 0x10 bytes before for locality check
+            # and 0x10 bytes after hash1 for value
+            if idx < 0x10:
+                continue
+
+            val_offset = idx + COUNTER_OFFSET
+            if val_offset + 4 > len(data):
+                continue
+
+            value = struct.unpack_from('<I', data, val_offset)[0]
+            if value > COUNTER_MAX:
+                continue  # implausible
+
+            node_addr = base + idx
+            local_count = count_local_pointers(data, base, idx, node_addr)
+            candidates.append((node_addr, value, local_count))
+
+    if not candidates:
+        return None
+
+    if VERBOSE:
+        for addr, val, lc in sorted(candidates):
+            print(f"  candidate: addr=0x{addr:08X}  value={val:6d}  local_ptrs={lc}")
+
+    # Filter to only candidates with at least 1 local pointer (active nodes)
+    active = [(a, v, lc) for a, v, lc in candidates if lc >= 1]
+
+    if not active:
+        # All candidates have 0 local pointers.
+        return None
+
+    if VERBOSE:
+        print(f"  active candidates: {[(f'0x{a:08X}', v, lc) for a, v, lc in active]}")
+
+    # If exactly one active candidate: done
+    if len(active) == 1:
+        return active[0][1]
+
+    # Multiple active candidates: prefer the one with the MOST local pointers
+    best_lc = max(lc for _, _, lc in active)
+    top = [(a, v, lc) for a, v, lc in active if lc == best_lc]
+
+    if len(top) == 1:
+        return top[0][1]
+
+    # Still tied: prefer highest value (the persistent zero-VM candidate
+    # always has value 0; the real counter has the actual count)
+    top.sort(key=lambda x: x[1], reverse=True)
+    return top[0][1]
+
+
+def main():
+    global VERBOSE
+    once   = "--once"   in sys.argv
+    VERBOSE = "--verbose" in sys.argv
+
+    pid = find_pid(PROCESS_NAME)
+    if pid is None:
+        print(f"Game not running ({PROCESS_NAME})")
+        sys.exit(1)
+
+    print(f"Attached to {PROCESS_NAME} (pid={pid})")
+
+    try:
+        handle = open_process(pid)
+    except OSError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    if once:
+        value = scan_for_counter(handle)
+        if value is None:
+            print("Counter not found (game not in episode 3?)")
+        else:
+            print(f"Grub Counter: {value}")
+    else:
+        print(f"Counting grubs... writing to {OUTPUT_FILE} (Ctrl+C to stop)")
+        last = None
+        while True:
+            value = scan_for_counter(handle)
+            if value != last:
+                last = value
+                display = str(value) if value is not None else "?"
+                print(f"Grub Counter: {display}")
+                with open(OUTPUT_FILE, "w") as f:
+                    f.write(display)
+            time.sleep(POLL_INTERVAL)
+
+    kernel32.CloseHandle(handle)
+
+
+if __name__ == "__main__":
+    main()
