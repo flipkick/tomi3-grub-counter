@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "tomi3-grub-counter"
+version = "0.2.0"
+description = "Live grub counter reader for Tales of Monkey Island 3 (Proton/Wine and Windows)"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+keywords = ["monkey-island", "telltale", "grub", "speedrun", "obs"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/flipcoder/tomi3-grub-counter"
+"Bug Tracker" = "https://github.com/flipcoder/tomi3-grub-counter/issues"
+
+[project.scripts]
+monitor_grub_counter = "monitor_grub_counter:main"
+extract_grub_counter_from_save = "extract_grub_counter_from_save:main"
+
+[tool.setuptools]
+py-modules = ["monitor_grub_counter", "extract_grub_counter_from_save"]
