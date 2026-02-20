@@ -1,6 +1,7 @@
 """
 Tales of Monkey Island 3 - Live Grub Counter Reader (RAM)
 Reads the grub counter directly from the running game process.
+Works on Windows (native) and Linux (Proton/Wine).
 
 Strategy:
   1. Scan all readable memory for the nGrubsCollected node signature:
@@ -26,11 +27,10 @@ Usage:
   python monitor_grub_counter.py --verbose  -> same, with debug output
 """
 
+import os
 import struct
 import sys
 import time
-import ctypes
-import ctypes.wintypes
 
 # Node signature: hash1 + hash2 + type descriptor (12 bytes starting at hash1)
 SIGNATURE = bytes.fromhex('A15A219753C00E515C8F8D00')
@@ -46,87 +46,139 @@ COUNTER_MAX = 200_000
 LOCALITY_OFFSETS = [-0x10, -0x0C, -0x08]
 LOCALITY_MAX_DELTA = 4 * 1024 * 1024  # 4 MB, active node pointers stay close
 
-PROCESS_NAME = "monkeyisland103.exe"
+PROCESS_NAME = "MonkeyIsland103.exe"
 OUTPUT_FILE = "grub_counter.txt"
 POLL_INTERVAL = 1.0  # seconds
 
 VERBOSE = False
 
-# Windows API
-kernel32 = ctypes.windll.kernel32
-PROCESS_VM_READ = 0x0010
-PROCESS_QUERY_INFORMATION = 0x0400
+IS_LINUX = sys.platform.startswith("linux")
 
+# ── Windows backend ──────────────────────────────────────────────────────────
 
-class MEMORY_BASIC_INFORMATION(ctypes.Structure):
-    _fields_ = [
-        ("BaseAddress",       ctypes.c_void_p),
-        ("AllocationBase",    ctypes.c_void_p),
-        ("AllocationProtect", ctypes.wintypes.DWORD),
-        ("RegionSize",        ctypes.c_size_t),
-        ("State",             ctypes.wintypes.DWORD),
-        ("Protect",           ctypes.wintypes.DWORD),
-        ("Type",              ctypes.wintypes.DWORD),
-    ]
+if not IS_LINUX:
+    import ctypes
+    import ctypes.wintypes
 
+    kernel32 = ctypes.windll.kernel32
+    PROCESS_VM_READ = 0x0010
+    PROCESS_QUERY_INFORMATION = 0x0400
+    MEM_COMMIT    = 0x1000
+    PAGE_NOACCESS = 0x01
+    PAGE_GUARD    = 0x100
 
-MEM_COMMIT   = 0x1000
-PAGE_NOACCESS = 0x01
-PAGE_GUARD    = 0x100
+    class MEMORY_BASIC_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BaseAddress",       ctypes.c_void_p),
+            ("AllocationBase",    ctypes.c_void_p),
+            ("AllocationProtect", ctypes.wintypes.DWORD),
+            ("RegionSize",        ctypes.c_size_t),
+            ("State",             ctypes.wintypes.DWORD),
+            ("Protect",           ctypes.wintypes.DWORD),
+            ("Type",              ctypes.wintypes.DWORD),
+        ]
 
 
 def find_pid(name):
     import subprocess
-    out = subprocess.check_output(
-        ["tasklist", "/FI", f"IMAGENAME eq {name}", "/FO", "CSV", "/NH"],
-        text=True
-    )
-    for line in out.splitlines():
-        parts = [p.strip('"') for p in line.split('","')]
-        if parts and parts[0].lower() == name.lower():
-            return int(parts[1])
-    return None
+    if IS_LINUX:
+        try:
+            out = subprocess.check_output(["pgrep", "-fi", name], text=True)
+            return int(out.split()[0])
+        except subprocess.CalledProcessError:
+            return None
+    else:
+        out = subprocess.check_output(
+            ["tasklist", "/FI", f"IMAGENAME eq {name}", "/FO", "CSV", "/NH"],
+            text=True
+        )
+        for line in out.splitlines():
+            parts = [p.strip('"') for p in line.split('","')]
+            if parts and parts[0].lower() == name.lower():
+                return int(parts[1])
+        return None
 
 
 def open_process(pid):
-    handle = kernel32.OpenProcess(
-        PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, False, pid
-    )
-    if not handle:
-        raise OSError(f"OpenProcess failed (pid={pid})")
-    return handle
+    if IS_LINUX:
+        # On Linux the "handle" is just the pid — /proc/<pid>/mem is opened
+        # per-read. Verify access by opening maps.
+        maps_path = f"/proc/{pid}/maps"
+        if not os.path.exists(maps_path):
+            raise OSError(f"Cannot access /proc/{pid}/maps — run as the same user or root")
+        return pid
+    else:
+        handle = kernel32.OpenProcess(
+            PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, False, pid
+        )
+        if not handle:
+            raise OSError(f"OpenProcess failed (pid={pid})")
+        return handle
 
 
 def read_memory(handle, address, size):
-    buf = ctypes.create_string_buffer(size)
-    read = ctypes.c_size_t(0)
-    ok = kernel32.ReadProcessMemory(
-        handle, ctypes.c_void_p(address), buf, size, ctypes.byref(read)
-    )
-    if not ok or read.value == 0:
-        return None
-    return buf.raw[:read.value]
+    if IS_LINUX:
+        try:
+            with open(f"/proc/{handle}/mem", "rb") as f:
+                f.seek(address)
+                data = f.read(size)
+                return data if data else None
+        except OSError:
+            return None
+    else:
+        import ctypes
+        buf = ctypes.create_string_buffer(size)
+        read = ctypes.c_size_t(0)
+        ok = kernel32.ReadProcessMemory(
+            handle, ctypes.c_void_p(address), buf, size, ctypes.byref(read)
+        )
+        if not ok or read.value == 0:
+            return None
+        return buf.raw[:read.value]
 
 
 def iter_readable_regions(handle):
     """Yield (base_address, size) for all readable committed pages."""
-    mbi = MEMORY_BASIC_INFORMATION()
-    addr = 0
-    while True:
-        ret = kernel32.VirtualQueryEx(
-            handle, ctypes.c_void_p(addr),
-            ctypes.byref(mbi), ctypes.sizeof(mbi)
-        )
-        if not ret:
-            break
-        if (mbi.State == MEM_COMMIT and
-                not (mbi.Protect & PAGE_NOACCESS) and
-                not (mbi.Protect & PAGE_GUARD)):
-            yield mbi.BaseAddress, mbi.RegionSize
-        addr = (mbi.BaseAddress or 0) + mbi.RegionSize
-        if addr >= 0xFFFFFFFF:
-            break
+    if IS_LINUX:
+        with open(f"/proc/{handle}/maps", "r") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                perms = parts[1]
+                if "r" not in perms:
+                    continue
+                addr_range = parts[0].split("-")
+                start = int(addr_range[0], 16)
+                end   = int(addr_range[1], 16)
+                yield start, end - start
+    else:
+        import ctypes
+        mbi = MEMORY_BASIC_INFORMATION()
+        addr = 0
+        while True:
+            ret = kernel32.VirtualQueryEx(
+                handle, ctypes.c_void_p(addr),
+                ctypes.byref(mbi), ctypes.sizeof(mbi)
+            )
+            if not ret:
+                break
+            if (mbi.State == MEM_COMMIT and
+                    not (mbi.Protect & PAGE_NOACCESS) and
+                    not (mbi.Protect & PAGE_GUARD)):
+                yield mbi.BaseAddress, mbi.RegionSize
+            addr = (mbi.BaseAddress or 0) + mbi.RegionSize
+            if addr >= 0xFFFFFFFF:
+                break
 
+
+def close_process(handle):
+    if not IS_LINUX:
+        import ctypes
+        ctypes.windll.kernel32.CloseHandle(handle)
+
+
+# ── Core logic (platform-independent) ────────────────────────────────────────
 
 def count_local_pointers(data, region_base, idx, node_addr):
     """
@@ -155,7 +207,6 @@ def scan_for_counter(handle):
     Scan all readable memory for nGrubsCollected nodes.
     Returns the counter value from the active node, or None.
     """
-    # List of (node_addr, value, local_ptr_count)
     candidates = []
 
     for base, size in iter_readable_regions(handle):
@@ -170,8 +221,6 @@ def scan_for_counter(handle):
                 break
             offset = idx + 1
 
-            # Need at least 0x10 bytes before for locality check
-            # and 0x10 bytes after hash1 for value
             if idx < 0x10:
                 continue
 
@@ -181,7 +230,7 @@ def scan_for_counter(handle):
 
             value = struct.unpack_from('<I', data, val_offset)[0]
             if value > COUNTER_MAX:
-                continue  # implausible
+                continue
 
             node_addr = base + idx
             local_count = count_local_pointers(data, base, idx, node_addr)
@@ -194,21 +243,17 @@ def scan_for_counter(handle):
         for addr, val, lc in sorted(candidates):
             print(f"  candidate: addr=0x{addr:08X}  value={val:6d}  local_ptrs={lc}")
 
-    # Filter to only candidates with at least 1 local pointer (active nodes)
     active = [(a, v, lc) for a, v, lc in candidates if lc >= 1]
 
     if not active:
-        # All candidates have 0 local pointers.
         return None
 
     if VERBOSE:
         print(f"  active candidates: {[(f'0x{a:08X}', v, lc) for a, v, lc in active]}")
 
-    # If exactly one active candidate: done
     if len(active) == 1:
         return active[0][1]
 
-    # Multiple active candidates: prefer the one with the MOST local pointers
     best_lc = max(lc for _, _, lc in active)
     top = [(a, v, lc) for a, v, lc in active if lc == best_lc]
 
@@ -221,15 +266,24 @@ def scan_for_counter(handle):
     return top[0][1]
 
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+
 def main():
     global VERBOSE
-    once   = "--once"   in sys.argv
+    once    = "--once"    in sys.argv
     VERBOSE = "--verbose" in sys.argv
 
     pid = find_pid(PROCESS_NAME)
     if pid is None:
-        print(f"Game not running ({PROCESS_NAME})")
-        sys.exit(1)
+        print(f"Waiting for {PROCESS_NAME} to be launched... (Ctrl+C to cancel)", end="", flush=True)
+        try:
+            while pid is None:
+                time.sleep(1.0)
+                pid = find_pid(PROCESS_NAME)
+        except KeyboardInterrupt:
+            print("\nCancelled.")
+            sys.exit(0)
+        print()
 
     print(f"Attached to {PROCESS_NAME} (pid={pid})")
 
@@ -249,7 +303,11 @@ def main():
         print(f"Counting grubs... writing to {OUTPUT_FILE} (Ctrl+C to stop)")
         last = None
         while True:
-            value = scan_for_counter(handle)
+            try:
+                value = scan_for_counter(handle)
+            except FileNotFoundError:
+                print("\nGame process ended. Exiting.")
+                break
             if value != last:
                 last = value
                 display = str(value) if value is not None else "?"
@@ -258,7 +316,7 @@ def main():
                     f.write(display)
             time.sleep(POLL_INTERVAL)
 
-    kernel32.CloseHandle(handle)
+    close_process(handle)
 
 
 if __name__ == "__main__":
