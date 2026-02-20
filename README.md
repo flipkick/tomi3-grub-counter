@@ -76,8 +76,8 @@ Reads the counter from a `.save` file without the game running.
 ### Usage
 
 ```
-extract_grub_counter_from_save.exe                   # all saves in the default game directory
-extract_grub_counter_from_save.exe <path>.save       # single file
+python extract_grub_counter_from_save.py                   # all saves in the default game directory
+python extract_grub_counter_from_save.py <path>.save       # single file
 ```
 
 **Default save directory:**
@@ -132,7 +132,13 @@ Reversed using x32dbg attached to `monkeyisland103.exe` (32-bit, TellTale Tool e
 
 ---
 
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+---
+
 ## Author
 
-flip - reverse engineering and tool development.
+flip - reverse engineering and tool development.  
 With occasional help from Claude Code, using Claude Sonnet 4.6 (LLM). And occasional disagreement. No warranty implied.
