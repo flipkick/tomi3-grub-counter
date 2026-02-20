@@ -41,9 +41,14 @@ def read_grub_counter(filepath):
 
 
 def main():
-    if len(sys.argv) > 1:
-        path = sys.argv[1]
-        counter, err = read_grub_counter(path)
+    import argparse
+    parser = argparse.ArgumentParser(description="Extract grub counter from TellTale save files")
+    parser.add_argument("file", nargs="?", help="Path to a specific .save file")
+    parser.add_argument("--dir", dest="savedir", metavar="DIR", help="Directory to search for .save files")
+    args = parser.parse_args()
+
+    if args.file:
+        counter, err = read_grub_counter(args.file)
         if err:
             print(f"Error: {err}")
             sys.exit(1)
@@ -51,11 +56,14 @@ def main():
             print(f"Grub Counter: {counter}")
         return
 
-    pattern = os.path.join(SAVEDIR, "*.save")
-    saves = sorted(glob.glob(pattern))
+    savedir = args.savedir or SAVEDIR
+    pattern = os.path.join(savedir, "*.save")
+    saves = sorted(glob.glob(pattern), reverse=True)
 
     if not saves:
-        print(f"No .save files found in:\n  {SAVEDIR}")
+        print(f"No .save files found in:\n  {savedir}")
+        if not args.savedir:
+            print("Tip: use --dir <folder> to specify a different save directory")
         sys.exit(1)
 
     col_name  = 30

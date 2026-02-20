@@ -35,6 +35,8 @@ python monitor_grub_counter.py --once            # print counter once and exit
 python monitor_grub_counter.py --once --verbose  # same, with debug output
 ```
 
+If the game is not running when the script starts, it will wait and retry every second until the process appears. Press **Ctrl+C** to cancel the wait.
+
 The current counter value is written to `grub_counter.txt` in the working directory whenever it changes. Point an OBS Text source at that file.
 
 ### How It Works
@@ -72,11 +74,13 @@ Reads the counter from a `.save` file without the game running.
 ### Usage
 
 ```
-python extract_grub_counter_from_save.py                   # all saves in the default game directory
-python extract_grub_counter_from_save.py <path>.save       # single file
+python extract_grub_counter_from_save.py                        # all saves in the default Windows game directory
+python extract_grub_counter_from_save.py --dir <folder>         # all saves in a custom directory
+python extract_grub_counter_from_save.py <path>.save            # single file
 ```
 
 **Default save directory:**
+
 ```
 C:\Users\<name>\Documents\Telltale Games\Tales of Monkey Island 3\
 ```
