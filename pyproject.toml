@@ -7,11 +7,11 @@ name = "tomi3-grub-counter"
 version = "0.6.0"
 description = "Live grub count reader for Tales of Monkey Island 3 (Proton/Wine and Windows)"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.8"
 keywords = ["monkey-island", "telltale", "grub", "speedrun", "obs"]
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
