@@ -107,6 +107,10 @@ class GrubCountApp(tk.Tk):
             messagebox.showinfo("Grub Count", f"{name}\n\nGrub Count: {count}")
 
 
-if __name__ == "__main__":
+def main():
     app = GrubCountApp()
     app.mainloop()
+
+
+if __name__ == "__main__":
+    main()

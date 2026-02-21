@@ -24,7 +24,7 @@ Three tools for reading the **grub count** from *Tales of Monkey Island: Chapter
 pip install tomi3-grub-counter
 ```
 
-After installation, `monitor_grub_count` and `extract_grub_count_from_save` are available as commands directly.
+After installation, `monitor_grub_count`, `extract_grub_count_from_save`, and `extract_grub_count_from_save_gui` are available as commands directly.
 
 ## monitor_grub_count - Live RAM Reader
 

@@ -25,5 +25,8 @@ Homepage = "https://github.com/flipkick/tomi3-grub-counter"
 monitor_grub_count = "monitor_grub_count:main"
 extract_grub_count_from_save = "extract_grub_count_from_save:main"
 
+[project.gui-scripts]
+extract_grub_count_from_save_gui = "extract_grub_count_from_save_gui:main"
+
 [tool.setuptools]
-py-modules = ["monitor_grub_count", "extract_grub_count_from_save"]
+py-modules = ["monitor_grub_count", "extract_grub_count_from_save", "extract_grub_count_from_save_gui", "tomi3_save"]
