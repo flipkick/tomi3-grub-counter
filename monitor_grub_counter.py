@@ -20,6 +20,16 @@ Strategy:
      If tied, prefer the highest counter value (the persistent zero-VM
      candidate always has value 0; the real counter has the actual count).
 
+  4. Cache the active node address. Subsequent polls read only 4 bytes at
+     that address instead of doing a full scan, keeping CPU usage minimal.
+     The cache is invalidated and a new full scan is triggered when:
+       - the read fails (node unmapped)
+       - the counter decreased (save reloaded to an earlier point)
+       - the counter jumped by more than 1 (save reloaded to a later point,
+         or stale address pointing to unrelated data)
+       - the last known value was 0 (can't distinguish real 0 from a dead
+         node that also reads 0)
+
 Usage:
   python monitor_grub_counter.py                        -> poll every second, write to grub_counter.txt
   python monitor_grub_counter.py --output <file>        -> write to a custom file instead
@@ -39,7 +49,7 @@ SIGNATURE = bytes.fromhex('A15A219753C00E515C8F8D00')
 # Counter DWORD is at +0x0C from hash1 start
 COUNTER_OFFSET = 0x0C
 
-# Plausible counter range (never negative, max ever seen ~200k)
+# Plausible counter range (never negative)
 COUNTER_MAX = 200_000
 
 # Locality check offsets (relative to hash1 start): fields that hold
@@ -111,7 +121,7 @@ def open_process(pid):
             PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, False, pid
         )
         if not handle:
-            raise OSError(f"OpenProcess failed (pid={pid})")
+            raise OSError(f"OpenProcess failed (pid={pid}) — are you running as Administrator?")
         return handle
 
 
@@ -211,10 +221,22 @@ def count_local_pointers(data, idx, node_addr):
     return count
 
 
+def read_counter_at(handle, node_addr):
+    """
+    Fast path: read the counter DWORD directly from a known node address.
+    Returns the value, or None if the read fails or the value is implausible.
+    """
+    data = read_memory(handle, node_addr + COUNTER_OFFSET, 4)
+    if not data or len(data) < 4:
+        return None
+    value = struct.unpack_from('<I', data, 0)[0]
+    return value if value <= COUNTER_MAX else None
+
+
 def scan_for_counter(handle, verbose=False):
     """
     Scan all readable memory for nGrubsCollected nodes.
-    Returns the counter value from the active node, or None.
+    Returns (value, node_addr) for the active node, or (None, None).
     """
     candidates = []
 
@@ -241,12 +263,12 @@ def scan_for_counter(handle, verbose=False):
             if value > COUNTER_MAX:
                 continue
 
-            node_addr = base + idx
+            node_addr   = base + idx
             local_count = count_local_pointers(data, idx, node_addr)
             candidates.append((node_addr, value, local_count))
 
     if not candidates:
-        return None
+        return None, None
 
     if verbose:
         for addr, val, lc in sorted(candidates):
@@ -255,24 +277,24 @@ def scan_for_counter(handle, verbose=False):
     active = [(a, v, lc) for a, v, lc in candidates if lc >= 1]
 
     if not active:
-        return None
+        return None, None
 
     if verbose:
         print(f"  active candidates: {[(f'0x{a:08X}', v, lc) for a, v, lc in active]}")
 
     if len(active) == 1:
-        return active[0][1]
+        return active[0][1], active[0][0]
 
     best_lc = max(lc for _, _, lc in active)
     top = [(a, v, lc) for a, v, lc in active if lc == best_lc]
 
     if len(top) == 1:
-        return top[0][1]
+        return top[0][1], top[0][0]
 
     # Still tied: prefer highest value (the persistent zero-VM candidate
     # always has value 0; the real counter has the actual count)
     top.sort(key=lambda x: x[1], reverse=True)
-    return top[0][1]
+    return top[0][1], top[0][0]
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -318,17 +340,24 @@ def main():
 
     try:
         if once:
-            value = scan_for_counter(handle, verbose)
+            value, _ = scan_for_counter(handle, verbose)
             if value is None:
                 print("Counter not found (game not in episode 3?)")
             else:
-                print(f"Grub Counter: {value}")
+                print(f"Grub Count: {value}")
         else:
             print(f"Counting grubs... writing to {output_file} (Ctrl+C to stop)")
             last = None
+            cached_node_addr = None
             while True:
                 try:
-                    value = scan_for_counter(handle, verbose)
+                    if cached_node_addr is not None and last != 0:  # last==0: can't trust cache (dead node also reads 0)
+                        value = read_counter_at(handle, cached_node_addr)
+                        if value is None or (last is not None and (value < last or value > last + 1)):
+                            # Address stale or implausible jump (save reload) — full scan
+                            value, cached_node_addr = scan_for_counter(handle, verbose)
+                    else:
+                        value, cached_node_addr = scan_for_counter(handle, verbose)
                 except FileNotFoundError:
                     print("\nGame process ended. Exiting.")
                     break
@@ -338,7 +367,7 @@ def main():
                 if value != last:
                     last = value
                     display = str(value) if value is not None else "?"
-                    print(f"Grub Counter: {display}")
+                    print(f"Grub Count: {display}")
                     with open(output_file, "w") as f:
                         f.write(display)
                 time.sleep(POLL_INTERVAL)

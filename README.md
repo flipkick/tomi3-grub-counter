@@ -77,6 +77,10 @@ Active nodes are distinguished by the three fields immediately before the signat
 
 After the locality filter, two active candidates typically remain: the real game counter and a `nGrubsCollected=0` entry in the engine VM (which also has valid nearby pointers). When both have the same locality score, the one with the **higher value** wins. When the real counter is also 0, both candidates have value 0, so the result is correct either way.
 
+**Step 4: Caching**
+
+After a successful scan the node address is cached. Subsequent polls read only 4 bytes directly from that address rather than scanning all memory, keeping CPU usage negligible. The cache is invalidated and a new full scan is triggered if the read fails, the counter decreases (save reloaded to an earlier point), or the counter jumps by more than 1 (save reloaded to a later point). When the last known value was 0 the cache is not used, because a dead node that also reads 0 is indistinguishable from a live one.
+
 ## extract_grub_counter_from_save.py - Save File Reader
 
 Reads the counter from a `.save` file without the game running.
