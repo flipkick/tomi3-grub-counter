@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tomi3-grub-counter"
-version = "0.3.1"
+version = "0.4.0"
 description = "Live grub counter reader for Tales of Monkey Island 3 (Proton/Wine and Windows)"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -18,8 +18,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/flipcoder/tomi3-grub-counter"
-"Bug Tracker" = "https://github.com/flipcoder/tomi3-grub-counter/issues"
+Homepage = "https://github.com/flipkick/tomi3-grub-counter"
+"Bug Tracker" = "https://github.com/flipkick/tomi3-grub-counter/issues"
 
 [project.scripts]
 monitor_grub_counter = "monitor_grub_counter:main"
