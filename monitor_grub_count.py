@@ -1,6 +1,6 @@
 """
-Tales of Monkey Island 3 - Live Grub Counter Reader (RAM)
-Reads the grub counter directly from the running game process.
+Tales of Monkey Island 3 - Live Grub Count Monitor (RAM)
+Reads the grub count directly from the running game process.
 Works on Windows (native) and Linux (Proton/Wine).
 
 Strategy:
@@ -8,7 +8,7 @@ Strategy:
        A1 5A 21 97  (hash1, LE)
        53 C0 0E 51  (hash2, LE)
        5C 8F 8D 00  (Int type descriptor, LE)
-     Counter DWORD follows at +0x0C from hash1 start.
+     Count DWORD follows at +0x0C from hash1 start.
 
   2. Multiple copies exist (GC history). Filter by "locality" heuristic:
      The ACTIVE node has 1-3 non-null fields at offsets -0x10, -0x0C, -0x08
@@ -17,24 +17,24 @@ Strategy:
      all-zero or have unrelated values there (e.g. 0x11FBxxxx).
 
   3. Among active candidates, prefer the one with the most local pointers.
-     If tied, prefer the highest counter value (the persistent zero-VM
-     candidate always has value 0; the real counter has the actual count).
+     If tied, prefer the highest count (the persistent zero-VM
+     candidate always has value 0; the real node has the actual count).
 
   4. Cache the active node address. Subsequent polls read only 4 bytes at
      that address instead of doing a full scan, keeping CPU usage minimal.
      The cache is invalidated and a new full scan is triggered when:
        - the read fails (node unmapped)
-       - the counter decreased (save reloaded to an earlier point)
-       - the counter jumped by more than 1 (save reloaded to a later point,
+       - the count decreased (save reloaded to an earlier point)
+       - the count jumped by more than 1 (save reloaded to a later point,
          or stale address pointing to unrelated data)
        - the last known value was 0 (can't distinguish real 0 from a dead
          node that also reads 0)
 
 Usage:
-  python monitor_grub_counter.py                        -> poll every second, write to grub_counter.txt
-  python monitor_grub_counter.py --output <file>        -> write to a custom file instead
-  python monitor_grub_counter.py --once                 -> print counter once
-  python monitor_grub_counter.py --verbose              -> same, with debug output
+  python monitor_grub_count.py                        -> poll every second, write to grub_count.txt
+  python monitor_grub_count.py --output <file>        -> write to a custom file instead
+  python monitor_grub_count.py --once                 -> print count once
+  python monitor_grub_count.py --verbose              -> same, with debug output
 """
 
 import os
@@ -46,11 +46,11 @@ import time
 # Node signature: hash1 + hash2 + type descriptor (12 bytes starting at hash1)
 SIGNATURE = bytes.fromhex('A15A219753C00E515C8F8D00')
 
-# Counter DWORD is at +0x0C from hash1 start
-COUNTER_OFFSET = 0x0C
+# Count DWORD is at +0x0C from hash1 start
+COUNT_OFFSET = 0x0C
 
-# Plausible counter range (never negative)
-COUNTER_MAX = 200_000
+# Plausible count range (never negative)
+COUNT_MAX = 200_000
 
 # Locality check offsets (relative to hash1 start): fields that hold
 # nearby heap pointers in the active node
@@ -58,7 +58,7 @@ LOCALITY_OFFSETS = [-0x10, -0x0C, -0x08]
 LOCALITY_MAX_DELTA = 4 * 1024 * 1024  # 4 MB, active node pointers stay close
 
 PROCESS_NAME = "MonkeyIsland103.exe"
-DEFAULT_OUTPUT_FILE = "grub_counter.txt"
+DEFAULT_OUTPUT_FILE = "grub_count.txt"
 POLL_INTERVAL = 1.0  # seconds
 
 IS_LINUX = sys.platform.startswith("linux")
@@ -221,19 +221,19 @@ def count_local_pointers(data, idx, node_addr):
     return count
 
 
-def read_counter_at(handle, node_addr):
+def read_count_at(handle, node_addr):
     """
-    Fast path: read the counter DWORD directly from a known node address.
+    Fast path: read the count DWORD directly from a known node address.
     Returns the value, or None if the read fails or the value is implausible.
     """
-    data = read_memory(handle, node_addr + COUNTER_OFFSET, 4)
+    data = read_memory(handle, node_addr + COUNT_OFFSET, 4)
     if not data or len(data) < 4:
         return None
     value = struct.unpack_from('<I', data, 0)[0]
-    return value if value <= COUNTER_MAX else None
+    return value if value <= COUNT_MAX else None
 
 
-def scan_for_counter(handle, verbose=False):
+def scan_for_count(handle, verbose=False):
     """
     Scan all readable memory for nGrubsCollected nodes.
     Returns (value, node_addr) for the active node, or (None, None).
@@ -255,12 +255,12 @@ def scan_for_counter(handle, verbose=False):
             if idx < 0x10:
                 continue
 
-            val_offset = idx + COUNTER_OFFSET
+            val_offset = idx + COUNT_OFFSET
             if val_offset + 4 > len(data):
                 continue
 
             value = struct.unpack_from('<I', data, val_offset)[0]
-            if value > COUNTER_MAX:
+            if value > COUNT_MAX:
                 continue
 
             node_addr   = base + idx
@@ -292,7 +292,7 @@ def scan_for_counter(handle, verbose=False):
         return top[0][1], top[0][0]
 
     # Still tied: prefer highest value (the persistent zero-VM candidate
-    # always has value 0; the real counter has the actual count)
+    # always has value 0; the real node has the actual count)
     top.sort(key=lambda x: x[1], reverse=True)
     return top[0][1], top[0][0]
 
@@ -302,14 +302,14 @@ def scan_for_counter(handle, verbose=False):
 def main():
     import argparse
     parser = argparse.ArgumentParser(
-        description="Read the nGrubsCollected counter live from the running game process. "
+        description="Read the nGrubsCollected count live from the running game process. "
                     "Waits for the game to launch if it is not already running. "
                     "Works on Windows (native) and Linux (Proton/Wine).",
     )
     parser.add_argument("--output", metavar="FILE", default=DEFAULT_OUTPUT_FILE,
-                        help=f"write counter to FILE instead of {DEFAULT_OUTPUT_FILE}")
+                        help=f"write count to FILE instead of {DEFAULT_OUTPUT_FILE}")
     parser.add_argument("--once", action="store_true",
-                        help="print the counter once and exit (no file written)")
+                        help="print the count once and exit (no file written)")
     parser.add_argument("--verbose", action="store_true",
                         help="print debug info about candidate nodes")
     args = parser.parse_args()
@@ -340,9 +340,9 @@ def main():
 
     try:
         if once:
-            value, _ = scan_for_counter(handle, verbose)
+            value, _ = scan_for_count(handle, verbose)
             if value is None:
-                print("Counter not found (game not in episode 3?)")
+                print("Count not found (game not in episode 3?)")
             else:
                 print(f"Grub Count: {value}")
         else:
@@ -352,12 +352,12 @@ def main():
             while True:
                 try:
                     if cached_node_addr is not None and last != 0:  # last==0: can't trust cache (dead node also reads 0)
-                        value = read_counter_at(handle, cached_node_addr)
+                        value = read_count_at(handle, cached_node_addr)
                         if value is None or (last is not None and (value < last or value > last + 1)):
                             # Address stale or implausible jump (save reload) — full scan
-                            value, cached_node_addr = scan_for_counter(handle, verbose)
+                            value, cached_node_addr = scan_for_count(handle, verbose)
                     else:
-                        value, cached_node_addr = scan_for_counter(handle, verbose)
+                        value, cached_node_addr = scan_for_count(handle, verbose)
                 except FileNotFoundError:
                     print("\nGame process ended. Exiting.")
                     break

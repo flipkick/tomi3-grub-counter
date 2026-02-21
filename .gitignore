@@ -11,4 +11,4 @@ __pycache__/
 Thumbs.db
 .DS_Store
 
-grub_counter.txt
+grub_count.txt

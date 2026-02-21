@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tomi3-grub-counter"
-version = "0.5.0"
-description = "Live grub counter reader for Tales of Monkey Island 3 (Proton/Wine and Windows)"
+version = "0.6.0"
+description = "Live grub count reader for Tales of Monkey Island 3 (Proton/Wine and Windows)"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.8"
@@ -22,8 +22,8 @@ Homepage = "https://github.com/flipkick/tomi3-grub-counter"
 "Bug Tracker" = "https://github.com/flipkick/tomi3-grub-counter/issues"
 
 [project.scripts]
-monitor_grub_counter = "monitor_grub_counter:main"
-extract_grub_counter_from_save = "extract_grub_counter_from_save:main"
+monitor_grub_count = "monitor_grub_count:main"
+extract_grub_count_from_save = "extract_grub_count_from_save:main"
 
 [tool.setuptools]
-py-modules = ["monitor_grub_counter", "extract_grub_counter_from_save"]
+py-modules = ["monitor_grub_count", "extract_grub_count_from_save"]

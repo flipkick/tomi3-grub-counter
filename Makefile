@@ -1,14 +1,13 @@
-EXES = dist/extract_grub_counter_from_save.exe dist/monitor_grub_counter.exe
-
-.PHONY: build build-exe clean publish
+.PHONY: build build-bin clean publish
 
 build:
 	pip install build
 	python -m build
 
-build-exe:
-	pyinstaller --onefile --console extract_grub_counter_from_save.py
-	pyinstaller --onefile --console monitor_grub_counter.py
+build-bin:
+	pyinstaller --onefile --console extract_grub_count_from_save.py
+	pyinstaller --onefile --windowed extract_grub_count_from_save_gui.py
+	pyinstaller --onefile --console monitor_grub_count.py
 
 
 clean:

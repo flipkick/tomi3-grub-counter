@@ -1,4 +1,4 @@
-# Tales of Monkey Island 3 Grub Counter Reader
+# Tales of Monkey Island 3 Grub Count Reader
 
 ## Why This Exists
 
@@ -12,10 +12,11 @@ Go give him a follow: **<https://twitch.tv/thewoofs>**
 
 # Content
 
-Two tools for reading the **grub counter** from *Tales of Monkey Island: Chapter 3: Lair of the Leviathan*:
+Three tools for reading the **grub count** from *Tales of Monkey Island: Chapter 3: Lair of the Leviathan*:
 
-- `extract_grub_counter_from_save.py` -> Read counter from a `.save` file
-- `monitor_grub_counter.py` -> Read counter live from the running game (for OBS etc.)
+- `extract_grub_count_from_save` — Read grub count from a `.save` file (CLI)
+- `extract_grub_count_from_save_gui` — Read grub count from a `.save` file (GUI)
+- `monitor_grub_count` — Read grub count live from the running game (for OBS etc.)
 
 ## Installation
 
@@ -23,11 +24,11 @@ Two tools for reading the **grub counter** from *Tales of Monkey Island: Chapter
 pip install tomi3-grub-counter
 ```
 
-After installation, `monitor_grub_counter` and `extract_grub_counter_from_save` are available as commands directly.
+After installation, `monitor_grub_count` and `extract_grub_count_from_save` are available as commands directly.
 
-## monitor_grub_counter.py - Live RAM Reader
+## monitor_grub_count - Live RAM Reader
 
-Attaches to the running game process and reads the counter directly from memory. Works with and without a save file, including when the counter is 0.
+Attaches to the running game process and reads the grub count directly from memory. Works with and without a save file, including when the grub count is 0.
 
 ### Requirements
 
@@ -38,16 +39,16 @@ Attaches to the running game process and reads the counter directly from memory.
 ### Usage
 
 ```
-python monitor_grub_counter.py                   # poll every second, write to grub_counter.txt
-python monitor_grub_counter.py --output <file>   # write to a custom file instead
-python monitor_grub_counter.py --once            # print counter once and exit (no file written)
-python monitor_grub_counter.py --verbose         # print debug info about candidate nodes
-python monitor_grub_counter.py --help            # show all options
+monitor_grub_count                   # poll every second, write to grub_count.txt
+monitor_grub_count --output <file>   # write to a custom file instead
+monitor_grub_count --once            # print grub count once and exit (no file written)
+monitor_grub_count --verbose         # print debug info about candidate nodes
+monitor_grub_count --help            # show all options
 ```
 
 If the game is not running when the script starts, it will wait and retry every second until the process appears. Press **Ctrl+C** to cancel the wait.
 
-The current counter value is written to `grub_counter.txt` in the working directory whenever it changes. Point an OBS Text source at that file.
+The current grub count is written to `grub_count.txt` in the working directory whenever it changes. Point an OBS Text source at that file.
 
 ### How It Works
 
@@ -65,7 +66,7 @@ A1 5A 21 97  hash1 (engine hash of "nGrubsCollected")
 5C 8F 8D 00  integer type descriptor (static .rdata address)
 ```
 
-The counter DWORD follows at `+0x0C`. The tool scans all readable memory regions for this signature.
+The count DWORD follows at `+0x0C`. The tool scans all readable memory regions for this signature.
 
 **Step 2: Locality filter**
 
@@ -75,23 +76,23 @@ Active nodes are distinguished by the three fields immediately before the signat
 
 **Step 3: Tiebreaker**
 
-After the locality filter, two active candidates typically remain: the real game counter and a `nGrubsCollected=0` entry in the engine VM (which also has valid nearby pointers). When both have the same locality score, the one with the **higher value** wins. When the real counter is also 0, both candidates have value 0, so the result is correct either way.
+After the locality filter, two active candidates typically remain: the real game count and a `nGrubsCollected=0` entry in the engine VM (which also has valid nearby pointers). When both have the same locality score, the one with the **higher value** wins. When the real count is also 0, both candidates have value 0, so the result is correct either way.
 
 **Step 4: Caching**
 
-After a successful scan the node address is cached. Subsequent polls read only 4 bytes directly from that address rather than scanning all memory, keeping CPU usage negligible. The cache is invalidated and a new full scan is triggered if the read fails, the counter decreases (save reloaded to an earlier point), or the counter jumps by more than 1 (save reloaded to a later point). When the last known value was 0 the cache is not used, because a dead node that also reads 0 is indistinguishable from a live one.
+After a successful scan the node address is cached. Subsequent polls read only 4 bytes directly from that address rather than scanning all memory, keeping CPU usage negligible. The cache is invalidated and a new full scan is triggered if the read fails, the count decreases (save reloaded to an earlier point), or the count jumps by more than 1 (save reloaded to a later point). When the last known value was 0 the cache is not used, because a dead node that also reads 0 is indistinguishable from a live one.
 
-## extract_grub_counter_from_save.py - Save File Reader
+## extract_grub_count_from_save - Save File Reader
 
-Reads the counter from a `.save` file without the game running.
+Reads the grub count from a `.save` file without the game running.
 
 ### Usage
 
 ```
-python extract_grub_counter_from_save.py                        # all saves in the default Windows game directory
-python extract_grub_counter_from_save.py --dir <folder>         # all saves in a custom directory
-python extract_grub_counter_from_save.py <path>.save            # single file
-python extract_grub_counter_from_save.py --help                 # show all options
+extract_grub_count_from_save                        # all saves in the default Windows game directory
+extract_grub_count_from_save --dir <folder>         # all saves in a custom directory
+extract_grub_count_from_save <path>.save            # single file
+extract_grub_count_from_save --help                 # show all options
 ```
 
 **Default save directory:**
@@ -108,13 +109,13 @@ C:\Users\<name>\Documents\Telltale Games\Tales of Monkey Island 3\
 | Encoding | XOR `0xFF` (bitwise NOT) |
 | Structure | `[4-byte LE length][ASCII key][data]` repeated entries |
 
-The counter is located by searching for a fixed 16-byte signature in the decoded data:
+The count is located by searching for a fixed 16-byte signature in the decoded data:
 
 ```
 02 00 00 00  A1 5A 21 97  53 C0 0E 51  00 00 00 00
 ```
 
-Followed by the counter as a **DWORD (uint32, Little-Endian)**.
+Followed by the count as a **DWORD (uint32, Little-Endian)**.
 
 ## Reverse Engineering Notes
 
@@ -122,7 +123,7 @@ Followed by the counter as a **DWORD (uint32, Little-Endian)**.
 
 Reversed using x32dbg attached to `monkeyisland103.exe` (32-bit, TellTale Tool engine, Lua 5.1 scripting).
 
-**Save file format** found via `CreateFileA`/`ReadFile` breakpoints to intercept I/O. XOR `0xFF` encoding identified by manual byte analysis. Counter location pinned by diffing saves at known counter values.
+**Save file format** found via `CreateFileA`/`ReadFile` breakpoints to intercept I/O. XOR `0xFF` encoding identified by manual byte analysis. Count location pinned by diffing saves at known count values.
 
 **RAM location** no static pointer chain exists to the Lua variable; Cheat Engine pointer scanner from the EXE base found zero results. The engine manages all script variables in a dynamic hash table.
 
@@ -138,10 +139,28 @@ Reversed using x32dbg attached to `monkeyisland103.exe` (32-bit, TellTale Tool e
 +0x00  hash1  A1 5A 21 97
 +0x04  hash2  53 C0 0E 51
 +0x08  type   5C 8F 8D 00  (integer type descriptor, .rdata)
-+0x0C  value  DWORD        ← grub counter
++0x0C  value  DWORD        ← grub count
 ```
 
 **Multiple copies problem** At any point 8-10 nodes matching the signature exist in RAM simultaneously: active entry, GC history from previous loads, hash-colliding variables from other tables, and a second engine Lua VM that always holds `nGrubsCollected=0`. The locality heuristic (fields at -0x10/-0x0C/-0x08 point within +/-4 MB) cleanly separates active from dead nodes. The persistent engine-VM zero entry is eliminated by the highest-value tiebreaker.
+
+## extract_grub_count_from_save_gui - Save File Reader (GUI)
+
+Same functionality as the CLI tool but with a graphical interface. Requires no arguments.
+
+### Requirements
+
+- Python 3.x with `tkinter` (included in the standard library on Windows)
+
+### Usage
+
+```
+extract_grub_count_from_save_gui
+```
+
+- The default save directory is pre-filled and scanned automatically on launch
+- Use **Browse…** to select a different directory, **Refresh** to re-scan
+- Use **Open single file…** to read one specific `.save` file
 
 ## License
 
