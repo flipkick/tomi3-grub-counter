@@ -11,5 +11,10 @@ __pycache__/
 Thumbs.db
 .DS_Store
 
+# Build
 .env
+AppDir/
+appimage-build/
+tomi3_grub_counter.egg-info/
+
 grub_count.txt
