@@ -16,10 +16,9 @@ Strategy:
      i.e. within +/- 4MB of the node itself. Dead nodes have either
      all-zero or have unrelated values there (e.g. 0x11FBxxxx).
 
-  3. Among active candidates, prefer the one whose nearby-pointer fields
-     are non-zero. If tie, prefer lowest-address (most recently allocated
-     tables tend to be at higher addresses in this engine. Actually we
-     just take the one with valid locality).
+  3. Among active candidates, prefer the one with the most local pointers.
+     If tied, prefer the highest counter value (the persistent zero-VM
+     candidate always has value 0; the real counter has the actual count).
 
 Usage:
   python monitor_grub_counter.py                        -> poll every second, write to grub_counter.txt
@@ -30,6 +29,7 @@ Usage:
 
 import os
 import struct
+import subprocess
 import sys
 import time
 
@@ -50,8 +50,6 @@ LOCALITY_MAX_DELTA = 4 * 1024 * 1024  # 4 MB, active node pointers stay close
 PROCESS_NAME = "MonkeyIsland103.exe"
 DEFAULT_OUTPUT_FILE = "grub_counter.txt"
 POLL_INTERVAL = 1.0  # seconds
-
-VERBOSE = False
 
 IS_LINUX = sys.platform.startswith("linux")
 
@@ -81,7 +79,6 @@ if not IS_LINUX:
 
 
 def find_pid(name):
-    import subprocess
     if IS_LINUX:
         try:
             out = subprocess.check_output(["pgrep", "-fi", name], text=True)
@@ -181,7 +178,7 @@ def close_process(handle):
 
 # ── Core logic (platform-independent) ────────────────────────────────────────
 
-def count_local_pointers(data, region_base, idx, node_addr):
+def count_local_pointers(data, idx, node_addr):
     """
     Count how many of the fields at offsets -0x10, -0x0C, -0x08 from hash1
     contain a value that looks like a nearby heap pointer (within 4MB of node).
@@ -203,7 +200,7 @@ def count_local_pointers(data, region_base, idx, node_addr):
     return count
 
 
-def scan_for_counter(handle):
+def scan_for_counter(handle, verbose=False):
     """
     Scan all readable memory for nGrubsCollected nodes.
     Returns the counter value from the active node, or None.
@@ -234,13 +231,13 @@ def scan_for_counter(handle):
                 continue
 
             node_addr = base + idx
-            local_count = count_local_pointers(data, base, idx, node_addr)
+            local_count = count_local_pointers(data, idx, node_addr)
             candidates.append((node_addr, value, local_count))
 
     if not candidates:
         return None
 
-    if VERBOSE:
+    if verbose:
         for addr, val, lc in sorted(candidates):
             print(f"  candidate: addr=0x{addr:08X}  value={val:6d}  local_ptrs={lc}")
 
@@ -249,7 +246,7 @@ def scan_for_counter(handle):
     if not active:
         return None
 
-    if VERBOSE:
+    if verbose:
         print(f"  active candidates: {[(f'0x{a:08X}', v, lc) for a, v, lc in active]}")
 
     if len(active) == 1:
@@ -271,7 +268,6 @@ def scan_for_counter(handle):
 
 def main():
     import argparse
-    global VERBOSE
     parser = argparse.ArgumentParser(
         description="Read the nGrubsCollected counter live from the running game process. "
                     "Waits for the game to launch if it is not already running. "
@@ -286,7 +282,7 @@ def main():
     args = parser.parse_args()
 
     once        = args.once
-    VERBOSE     = args.verbose
+    verbose     = args.verbose
     output_file = args.output
 
     pid = find_pid(PROCESS_NAME)
@@ -310,7 +306,7 @@ def main():
         sys.exit(1)
 
     if once:
-        value = scan_for_counter(handle)
+        value = scan_for_counter(handle, verbose)
         if value is None:
             print("Counter not found (game not in episode 3?)")
         else:
@@ -320,7 +316,7 @@ def main():
         last = None
         while True:
             try:
-                value = scan_for_counter(handle)
+                value = scan_for_counter(handle, verbose)
             except FileNotFoundError:
                 print("\nGame process ended. Exiting.")
                 break
