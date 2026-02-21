@@ -65,6 +65,7 @@ if not IS_LINUX:
     MEM_COMMIT    = 0x1000
     PAGE_NOACCESS = 0x01
     PAGE_GUARD    = 0x100
+    STILL_ACTIVE  = 259
 
     class MEMORY_BASIC_INFORMATION(ctypes.Structure):
         _fields_ = [
@@ -174,6 +175,16 @@ def close_process(handle):
     if not IS_LINUX:
         import ctypes
         ctypes.windll.kernel32.CloseHandle(handle)
+
+
+def is_process_alive(handle):
+    if IS_LINUX:
+        return os.path.exists(f"/proc/{handle}/maps")
+    else:
+        import ctypes
+        code = ctypes.wintypes.DWORD(0)
+        ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        return bool(ok) and code.value == STILL_ACTIVE
 
 
 # ── Core logic (platform-independent) ────────────────────────────────────────
@@ -305,30 +316,34 @@ def main():
         print(f"Error: {e}")
         sys.exit(1)
 
-    if once:
-        value = scan_for_counter(handle, verbose)
-        if value is None:
-            print("Counter not found (game not in episode 3?)")
+    try:
+        if once:
+            value = scan_for_counter(handle, verbose)
+            if value is None:
+                print("Counter not found (game not in episode 3?)")
+            else:
+                print(f"Grub Counter: {value}")
         else:
-            print(f"Grub Counter: {value}")
-    else:
-        print(f"Counting grubs... writing to {output_file} (Ctrl+C to stop)")
-        last = None
-        while True:
-            try:
-                value = scan_for_counter(handle, verbose)
-            except FileNotFoundError:
-                print("\nGame process ended. Exiting.")
-                break
-            if value != last:
-                last = value
-                display = str(value) if value is not None else "?"
-                print(f"Grub Counter: {display}")
-                with open(output_file, "w") as f:
-                    f.write(display)
-            time.sleep(POLL_INTERVAL)
-
-    close_process(handle)
+            print(f"Counting grubs... writing to {output_file} (Ctrl+C to stop)")
+            last = None
+            while True:
+                try:
+                    value = scan_for_counter(handle, verbose)
+                except FileNotFoundError:
+                    print("\nGame process ended. Exiting.")
+                    break
+                if not is_process_alive(handle):
+                    print("\nGame process ended. Exiting.")
+                    break
+                if value != last:
+                    last = value
+                    display = str(value) if value is not None else "?"
+                    print(f"Grub Counter: {display}")
+                    with open(output_file, "w") as f:
+                        f.write(display)
+                time.sleep(POLL_INTERVAL)
+    finally:
+        close_process(handle)
 
 
 if __name__ == "__main__":
