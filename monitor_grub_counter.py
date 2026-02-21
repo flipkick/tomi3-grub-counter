@@ -22,9 +22,10 @@ Strategy:
      just take the one with valid locality).
 
 Usage:
-  python monitor_grub_counter.py            -> poll every second, write to grub_counter.txt
-  python monitor_grub_counter.py --once     -> print counter once
-  python monitor_grub_counter.py --verbose  -> same, with debug output
+  python monitor_grub_counter.py                        -> poll every second, write to grub_counter.txt
+  python monitor_grub_counter.py --output <file>        -> write to a custom file instead
+  python monitor_grub_counter.py --once                 -> print counter once
+  python monitor_grub_counter.py --verbose              -> same, with debug output
 """
 
 import os
@@ -47,7 +48,7 @@ LOCALITY_OFFSETS = [-0x10, -0x0C, -0x08]
 LOCALITY_MAX_DELTA = 4 * 1024 * 1024  # 4 MB, active node pointers stay close
 
 PROCESS_NAME = "MonkeyIsland103.exe"
-OUTPUT_FILE = "grub_counter.txt"
+DEFAULT_OUTPUT_FILE = "grub_counter.txt"
 POLL_INTERVAL = 1.0  # seconds
 
 VERBOSE = False
@@ -269,9 +270,24 @@ def scan_for_counter(handle):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
+    import argparse
     global VERBOSE
-    once    = "--once"    in sys.argv
-    VERBOSE = "--verbose" in sys.argv
+    parser = argparse.ArgumentParser(
+        description="Read the nGrubsCollected counter live from the running game process. "
+                    "Waits for the game to launch if it is not already running. "
+                    "Works on Windows (native) and Linux (Proton/Wine).",
+    )
+    parser.add_argument("--output", metavar="FILE", default=DEFAULT_OUTPUT_FILE,
+                        help=f"write counter to FILE instead of {DEFAULT_OUTPUT_FILE}")
+    parser.add_argument("--once", action="store_true",
+                        help="print the counter once and exit (no file written)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="print debug info about candidate nodes")
+    args = parser.parse_args()
+
+    once        = args.once
+    VERBOSE     = args.verbose
+    output_file = args.output
 
     pid = find_pid(PROCESS_NAME)
     if pid is None:
@@ -300,7 +316,7 @@ def main():
         else:
             print(f"Grub Counter: {value}")
     else:
-        print(f"Counting grubs... writing to {OUTPUT_FILE} (Ctrl+C to stop)")
+        print(f"Counting grubs... writing to {output_file} (Ctrl+C to stop)")
         last = None
         while True:
             try:
@@ -312,7 +328,7 @@ def main():
                 last = value
                 display = str(value) if value is not None else "?"
                 print(f"Grub Counter: {display}")
-                with open(OUTPUT_FILE, "w") as f:
+                with open(output_file, "w") as f:
                     f.write(display)
             time.sleep(POLL_INTERVAL)
 

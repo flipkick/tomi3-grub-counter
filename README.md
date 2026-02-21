@@ -39,8 +39,10 @@ Attaches to the running game process and reads the counter directly from memory.
 
 ```
 python monitor_grub_counter.py                   # poll every second, write to grub_counter.txt
-python monitor_grub_counter.py --once            # print counter once and exit
-python monitor_grub_counter.py --once --verbose  # same, with debug output
+python monitor_grub_counter.py --output <file>   # write to a custom file instead
+python monitor_grub_counter.py --once            # print counter once and exit (no file written)
+python monitor_grub_counter.py --verbose         # print debug info about candidate nodes
+python monitor_grub_counter.py --help            # show all options
 ```
 
 If the game is not running when the script starts, it will wait and retry every second until the process appears. Press **Ctrl+C** to cancel the wait.
@@ -85,6 +87,7 @@ Reads the counter from a `.save` file without the game running.
 python extract_grub_counter_from_save.py                        # all saves in the default Windows game directory
 python extract_grub_counter_from_save.py --dir <folder>         # all saves in a custom directory
 python extract_grub_counter_from_save.py <path>.save            # single file
+python extract_grub_counter_from_save.py --help                 # show all options
 ```
 
 **Default save directory:**

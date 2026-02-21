@@ -42,9 +42,12 @@ def read_grub_counter(filepath):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Extract grub counter from TellTale save files")
-    parser.add_argument("file", nargs="?", help="Path to a specific .save file")
-    parser.add_argument("--dir", dest="savedir", metavar="DIR", help="Directory to search for .save files")
+    parser = argparse.ArgumentParser(
+        description="Read the nGrubsCollected counter from Tales of Monkey Island 3 save files.",
+        epilog=f"Default save directory: {SAVEDIR}",
+    )
+    parser.add_argument("file", nargs="?", help="read a specific .save file instead of scanning a directory")
+    parser.add_argument("--dir", dest="savedir", metavar="DIR", help="directory to scan for .save files (overrides default)")
     args = parser.parse_args()
 
     if args.file:
