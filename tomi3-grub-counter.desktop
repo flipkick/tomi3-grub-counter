@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=TomI3 Grub Count Reader
+Comment=Save file grub count reader for Tales of Monkey Island 3
+Exec=extract_grub_count_from_save_gui
+Icon=tomi3-grub-counter
+Type=Application
+Categories=Game;Utility;
+Terminal=false

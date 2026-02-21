@@ -16,5 +16,6 @@ Thumbs.db
 AppDir/
 appimage-build/
 tomi3_grub_counter.egg-info/
+resources/tomi3-grub-counter.png
 
 grub_count.txt
