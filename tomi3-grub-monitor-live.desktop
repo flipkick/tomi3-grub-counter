@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=TomI3 Grub Count Monitor
+Comment=Live grub count monitor for Tales of Monkey Island 3
+Exec=monitor_grub_count_gui
+Icon=tomi3-grub-counter
+Type=Application
+Categories=Game;Utility;
+Terminal=false

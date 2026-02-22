@@ -27,6 +27,7 @@ extract_grub_count_from_save = "extract_grub_count_from_save:main"
 
 [project.gui-scripts]
 extract_grub_count_from_save_gui = "extract_grub_count_from_save_gui:main"
+monitor_grub_count_gui = "monitor_grub_count_gui:main"
 
 [tool.setuptools]
-py-modules = ["monitor_grub_count", "extract_grub_count_from_save", "extract_grub_count_from_save_gui", "tomi3_save"]
+py-modules = ["monitor_grub_count", "monitor_grub_count_gui", "extract_grub_count_from_save", "extract_grub_count_from_save_gui", "tomi3_save", "tomi3_ram"]

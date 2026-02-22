@@ -14,9 +14,9 @@ Go give him a follow: **<https://twitch.tv/thewoofs>**
 
 Three tools for reading the **grub count** from *Tales of Monkey Island: Chapter 3: Lair of the Leviathan*:
 
-- `extract_grub_count_from_save` — Read grub count from a `.save` file (CLI)
-- `extract_grub_count_from_save_gui` — Read grub count from a `.save` file (GUI)
-- `monitor_grub_count` — Read grub count live from the running game (for OBS etc.)
+- `extract_grub_count_from_save` Read grub count from a `.save` file (CLI)
+- `extract_grub_count_from_save_gui` Read grub count from a `.save` file (GUI)
+- `monitor_grub_count` Read grub count live from the running game (for OBS etc.)
 
 ## Installation
 

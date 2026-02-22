@@ -14,10 +14,12 @@ if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
 set "TARGET_SUFFIX=%VERSION%-%OS%-%ARCH%"
 set "BIN_NAME_CLI=tomi3-grub-read-save-cli-%TARGET_SUFFIX%"
 set "BIN_NAME_GUI=tomi3-grub-read-save-gui-%TARGET_SUFFIX%"
-set "BIN_NAME_MONITOR=tomi3-grub-monitor-live-%TARGET_SUFFIX%"
+set "BIN_NAME_MONITOR=tomi3-grub-monitor-live-cli-%TARGET_SUFFIX%"
+set "BIN_NAME_MONITOR_GUI=tomi3-grub-monitor-live-gui-%TARGET_SUFFIX%"
 
-call pyinstaller --onefile --console --name "%BIN_NAME_CLI%" extract_grub_count_from_save.py
-call pyinstaller --onefile --windowed --name "%BIN_NAME_GUI%" extract_grub_count_from_save_gui.py
-call pyinstaller --onefile --console --name "%BIN_NAME_MONITOR%" monitor_grub_count.py
+call pyinstaller --onefile --console  --name "%BIN_NAME_CLI%"         extract_grub_count_from_save.py
+call pyinstaller --onefile --windowed --name "%BIN_NAME_GUI%"         extract_grub_count_from_save_gui.py
+call pyinstaller --onefile --console  --name "%BIN_NAME_MONITOR%"     monitor_grub_count.py
+call pyinstaller --onefile --windowed --name "%BIN_NAME_MONITOR_GUI%" monitor_grub_count_gui.py
 
 endlocal
