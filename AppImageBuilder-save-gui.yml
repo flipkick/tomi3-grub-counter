@@ -1,7 +1,7 @@
 version: 1
 
 AppDir:
-  path: ./AppDir
+  path: ./AppDir-save
 
   app_info:
     id: com.github.flipkick.tomi3grubcounter
@@ -14,8 +14,8 @@ AppDir:
   apt:
     arch: amd64
     sources:
-      - sourceline: 'deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse'
-        key_url: 'http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920d1991bc93c'
+      - sourceline: "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse"
+        key_url: "http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920d1991bc93c"
     include:
       - python3
       - python3-tk

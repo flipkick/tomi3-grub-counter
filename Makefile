@@ -49,7 +49,7 @@ appimage-docker-save-gui: prep-appdir-save-gui ensure-appimage-docker-image
 	  -v "$(CURDIR):/workspace" \
 	  -w /workspace \
 	  $(APPIMAGE_DOCKER_IMAGE) \
-	  appimage-builder --recipe AppImageBuilder-save-gui.yml --skip-test
+	  appimage-builder --recipe AppImageBuilder-save-gui.yml --appdir AppDir-save --skip-test
 	$(MAKE) collect-appimage-artifacts
 
 appimage-docker-monitor-gui: prep-appdir-monitor-gui ensure-appimage-docker-image
@@ -59,7 +59,7 @@ appimage-docker-monitor-gui: prep-appdir-monitor-gui ensure-appimage-docker-imag
 	  -v "$(CURDIR):/workspace" \
 	  -w /workspace \
 	  $(APPIMAGE_DOCKER_IMAGE) \
-	  appimage-builder --recipe AppImageBuilder-monitor.yml --skip-test
+	  appimage-builder --recipe AppImageBuilder-monitor.yml --appdir AppDir-monitor --skip-test
 	$(MAKE) collect-appimage-artifacts
 
 collect-appimage-artifacts:
@@ -108,4 +108,4 @@ resources/tomi3-grub-counter.png:
 	  resources/tomi3-grub-counter.png
 
 clean:
-	rm -rf build dist AppDir-save AppDir-monitor __pycache__ *.spec *.AppImage
+	rm -rf build dist AppDir AppDir-save AppDir-monitor __pycache__ *.spec *.AppImage
