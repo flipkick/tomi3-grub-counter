@@ -7,15 +7,15 @@ AppDir:
     id: com.github.flipkick.tomi3grubmonitor
     name: TomI3 Grub Count Monitor
     icon: tomi3-grub-counter
-    version: 0.6.0
+    version: 0.7.0
     exec: usr/bin/python3
     exec_args: '"$APPDIR/usr/share/tomi3-grub-counter/monitor_grub_count_gui.py" "$@"'
 
   apt:
     arch: amd64
     sources:
-      - sourceline: 'deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse'
-        key_url: 'http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920d1991bc93c'
+      - sourceline: "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse"
+        key_url: "http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920d1991bc93c"
     include:
       - python3
       - python3-tk

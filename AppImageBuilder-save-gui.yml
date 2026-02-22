@@ -7,7 +7,7 @@ AppDir:
     id: com.github.flipkick.tomi3grubcounter
     name: TomI3 Grub Count Reader
     icon: tomi3-grub-counter
-    version: 0.6.0
+    version: 0.7.0
     exec: usr/bin/python3
     exec_args: '"$APPDIR/usr/share/tomi3-grub-counter/extract_grub_count_from_save_gui.py" "$@"'
 
