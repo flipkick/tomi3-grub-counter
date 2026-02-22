@@ -16,7 +16,8 @@ Three tools for reading the **grub count** from *Tales of Monkey Island: Chapter
 
 - `extract_grub_count_from_save` Read grub count from a `.save` file (CLI)
 - `extract_grub_count_from_save_gui` Read grub count from a `.save` file (GUI)
-- `monitor_grub_count` Read grub count live from the running game (for OBS etc.)
+- `monitor_grub_count` Read grub count live from the running game (CLI, for OBS etc.)
+- `monitor_grub_count_gui` Read grub count live from the running game (GUI)
 
 ## Installation
 
@@ -24,7 +25,7 @@ Three tools for reading the **grub count** from *Tales of Monkey Island: Chapter
 pip install tomi3-grub-counter
 ```
 
-After installation, `monitor_grub_count`, `extract_grub_count_from_save`, and `extract_grub_count_from_save_gui` are available as commands directly.
+After installation, `monitor_grub_count`, `monitor_grub_count_gui`, `extract_grub_count_from_save`, and `extract_grub_count_from_save_gui` are available as commands directly.
 
 ## monitor_grub_count - Live RAM Reader
 
@@ -33,7 +34,7 @@ Attaches to the running game process and reads the grub count directly from memo
 ### Requirements
 
 - Python 3.x (no third-party packages)
-- Run as **Administrator** (required for `ReadProcessMemory`)
+- If using Windows, run as **Administrator** (required for `ReadProcessMemory`)
 - `monkeyisland103.exe` must be running
 
 ### Usage
@@ -81,6 +82,25 @@ After the locality filter, two active candidates typically remain: the real game
 **Step 4: Caching**
 
 After a successful scan the node address is cached. Subsequent polls read only 4 bytes directly from that address rather than scanning all memory, keeping CPU usage negligible. The cache is invalidated and a new full scan is triggered if the read fails, the count decreases (save reloaded to an earlier point), or the count jumps by more than 1 (save reloaded to a later point). When the last known value was 0 the cache is not used, because a dead node that also reads 0 is indistinguishable from a live one.
+
+## monitor_grub_count_gui - Live RAM Reader (GUI)
+
+Same functionality as the CLI tool but with a graphical interface. Requires no arguments.
+
+### Requirements
+
+- Python 3.x with `tkinter` (included in the standard library on Windows)
+- If using Windows, run as **Administrator** (required for `ReadProcessMemory`)
+
+### Usage
+
+```
+monitor_grub_count_gui
+```
+
+- The grub count is displayed live in the window; the tool waits automatically if the game is not yet running
+- Use the **Write to file** checkbox to enable or disable writing the count to a file for OBS
+- The output path defaults to `grub_count.txt` in the working directory; use **…** to browse for a different path
 
 ## extract_grub_count_from_save - Save File Reader
 
