@@ -1,6 +1,15 @@
 import sys
 import os
 import glob
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("tomi3-grub-counter")
+except PackageNotFoundError:
+    try:
+        from _version import __version__
+    except ImportError:
+        __version__ = "?"
 
 from tomi3_save import SAVEDIR, read_grub_count
 
@@ -11,6 +20,7 @@ def main():
         description="Read the nGrubsCollected count from Tales of Monkey Island 3 save files.",
         epilog=f"Default save directory: {SAVEDIR}",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s v{__version__}")
     parser.add_argument("file", nargs="?", help="read a specific .save file instead of scanning a directory")
     parser.add_argument("--dir", dest="savedir", metavar="DIR", help="directory to scan for .save files (overrides default)")
     args = parser.parse_args()

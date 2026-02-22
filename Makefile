@@ -12,7 +12,7 @@ APPIMAGE_DOCKERFILE := docker/appimage-builder.Dockerfile
 VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n1)
 OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 ARCH := $(shell uname -m)
-TARGET_SUFFIX := $(VERSION)-$(OS)-$(ARCH)
+TARGET_SUFFIX := $(OS)-$(ARCH)
 BIN_NAME_CLI := tomi3-grub-read-save-cli-$(TARGET_SUFFIX)
 BIN_NAME_MONITOR := tomi3-grub-monitor-live-cli-$(TARGET_SUFFIX)
 
@@ -80,6 +80,7 @@ prep-appdir-save-gui: resources/tomi3-grub-counter.png
 	         AppDir-save/usr/share/applications \
 	         AppDir-save/usr/share/icons/hicolor/256x256/apps
 	cp extract_grub_count_from_save_gui.py tomi3_save.py AppDir-save/usr/share/tomi3-grub-counter/
+	printf '__version__ = "%s"\n' "$(VERSION)" > AppDir-save/usr/share/tomi3-grub-counter/_version.py
 	cp resources/tomi3-grub-counter.png AppDir-save/tomi3-grub-counter.png
 	cp resources/tomi3-grub-counter.png AppDir-save/usr/share/icons/hicolor/256x256/apps/tomi3-grub-counter.png
 	cp tomi3-grub-read-save-gui.desktop AppDir-save/
@@ -92,6 +93,7 @@ prep-appdir-monitor-gui: resources/tomi3-grub-counter.png
 	         AppDir-monitor/usr/share/applications \
 	         AppDir-monitor/usr/share/icons/hicolor/256x256/apps
 	cp monitor_grub_count_gui.py monitor_grub_count.py tomi3_ram.py AppDir-monitor/usr/share/tomi3-grub-counter/
+	printf '__version__ = "%s"\n' "$(VERSION)" > AppDir-monitor/usr/share/tomi3-grub-counter/_version.py
 	cp resources/tomi3-grub-counter.png AppDir-monitor/tomi3-grub-counter.png
 	cp resources/tomi3-grub-counter.png AppDir-monitor/usr/share/icons/hicolor/256x256/apps/tomi3-grub-counter.png
 	cp tomi3-grub-monitor-live.desktop AppDir-monitor/

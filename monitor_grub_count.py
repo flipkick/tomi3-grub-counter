@@ -39,6 +39,15 @@ Usage:
 
 import sys
 import time
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("tomi3-grub-counter")
+except PackageNotFoundError:
+    try:
+        from _version import __version__
+    except ImportError:
+        __version__ = "?"
 
 from tomi3_ram import (
     PROCESS_NAME, DEFAULT_OUTPUT_FILE, POLL_INTERVAL,
@@ -54,6 +63,7 @@ def main():
                     "Waits for the game to launch if it is not already running. "
                     "Works on Windows (native) and Linux (Proton/Wine).",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s v{__version__}")
     parser.add_argument("--output", metavar="FILE", default=DEFAULT_OUTPUT_FILE,
                         help=f"write count to FILE instead of {DEFAULT_OUTPUT_FILE}")
     parser.add_argument("--once", action="store_true",

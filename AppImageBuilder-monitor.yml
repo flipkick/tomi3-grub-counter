@@ -30,6 +30,6 @@ AppDir:
 
 AppImage:
   arch: x86_64
-  file_name: tomi3-grub-monitor-live-gui-0.6.0-linux-x86_64.AppImage
+  file_name: tomi3-grub-monitor-live-gui-linux-x86_64.AppImage
   update-information: None
   sign-key: None

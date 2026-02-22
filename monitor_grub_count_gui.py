@@ -15,6 +15,15 @@ import queue
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("tomi3-grub-counter")
+except PackageNotFoundError:
+    try:
+        from _version import __version__
+    except ImportError:
+        __version__ = "?"
 
 from tomi3_ram import (
     PROCESS_NAME, DEFAULT_OUTPUT_FILE, POLL_INTERVAL,
@@ -31,7 +40,7 @@ class GrubMonitorApp(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        self.title("Tales of Monkey Island 3 - Grub Count Monitor")
+        self.title(f"Tales of Monkey Island 3 - Grub Count Monitor  v{__version__}")
         self.resizable(True, True)
         self.minsize(300, 200)
 

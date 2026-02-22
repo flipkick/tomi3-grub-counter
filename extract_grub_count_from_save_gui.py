@@ -2,6 +2,15 @@ import os
 import glob
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("tomi3-grub-counter")
+except PackageNotFoundError:
+    try:
+        from _version import __version__
+    except ImportError:
+        __version__ = "?"
 
 from tomi3_save import SAVEDIR, read_grub_count
 
@@ -9,7 +18,7 @@ from tomi3_save import SAVEDIR, read_grub_count
 class GrubCountApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Tales of Monkey Island 3 Grub Count Reader")
+        self.title(f"Tales of Monkey Island 3 Grub Count Reader  v{__version__}")
         self.resizable(True, True)
         self.minsize(560, 300)
         self._build_ui()
