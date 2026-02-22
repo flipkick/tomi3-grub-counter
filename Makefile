@@ -22,8 +22,10 @@ build:
 	$(if $(UV),uv build,pip install build && python -m build)
 
 build-bin:
+	printf '__version__ = "%s"\n' "$(VERSION)" > _version.py
 	$(RUN)pyinstaller --onefile --console --name $(BIN_NAME_CLI)     extract_grub_count_from_save.py
 	$(RUN)pyinstaller --onefile --console --name $(BIN_NAME_MONITOR) monitor_grub_count.py
+	rm -f _version.py
 
 appimage: appimage-docker-save-gui appimage-docker-monitor-gui
 

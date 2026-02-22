@@ -1,14 +1,13 @@
 import sys
 import os
 import glob
-from importlib.metadata import version, PackageNotFoundError
-
 try:
-    __version__ = version("tomi3-grub-counter")
-except PackageNotFoundError:
+    from _version import __version__
+except ImportError:
     try:
-        from _version import __version__
-    except ImportError:
+        from importlib.metadata import version, PackageNotFoundError
+        __version__ = version("tomi3-grub-counter")
+    except PackageNotFoundError:
         __version__ = "?"
 
 from tomi3_save import SAVEDIR, read_grub_count
