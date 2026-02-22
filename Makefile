@@ -76,16 +76,16 @@ collect-appimage-artifacts:
 	fi
 
 prep-appdir-save-gui: resources/tomi3-grub-counter.png
-	mkdir -p AppDir/usr/share/tomi3-grub-counter \
-	         AppDir/usr/share/applications \
-	         AppDir/usr/share/icons/hicolor/256x256/apps
-	cp extract_grub_count_from_save_gui.py tomi3_save.py AppDir/usr/share/tomi3-grub-counter/
-	cp resources/tomi3-grub-counter.png AppDir/tomi3-grub-counter.png
-	cp resources/tomi3-grub-counter.png AppDir/usr/share/icons/hicolor/256x256/apps/tomi3-grub-counter.png
-	cp tomi3-grub-read-save-gui.desktop AppDir/
-	cp tomi3-grub-read-save-gui.desktop AppDir/usr/share/applications/
-	cp tomi3-grub-read-save-gui.desktop AppDir/com.github.flipkick.tomi3grubcounter.desktop
-	cp tomi3-grub-read-save-gui.desktop AppDir/usr/share/applications/com.github.flipkick.tomi3grubcounter.desktop
+	mkdir -p AppDir-save/usr/share/tomi3-grub-counter \
+	         AppDir-save/usr/share/applications \
+	         AppDir-save/usr/share/icons/hicolor/256x256/apps
+	cp extract_grub_count_from_save_gui.py tomi3_save.py AppDir-save/usr/share/tomi3-grub-counter/
+	cp resources/tomi3-grub-counter.png AppDir-save/tomi3-grub-counter.png
+	cp resources/tomi3-grub-counter.png AppDir-save/usr/share/icons/hicolor/256x256/apps/tomi3-grub-counter.png
+	cp tomi3-grub-read-save-gui.desktop AppDir-save/
+	cp tomi3-grub-read-save-gui.desktop AppDir-save/usr/share/applications/
+	cp tomi3-grub-read-save-gui.desktop AppDir-save/com.github.flipkick.tomi3grubcounter.desktop
+	cp tomi3-grub-read-save-gui.desktop AppDir-save/usr/share/applications/com.github.flipkick.tomi3grubcounter.desktop
 
 prep-appdir-monitor-gui: resources/tomi3-grub-counter.png
 	mkdir -p AppDir-monitor/usr/share/tomi3-grub-counter \
@@ -108,4 +108,4 @@ resources/tomi3-grub-counter.png:
 	  resources/tomi3-grub-counter.png
 
 clean:
-	rm -rf build dist AppDir AppDir-monitor __pycache__ *.spec *.AppImage
+	rm -rf build dist AppDir-save AppDir-monitor __pycache__ *.spec *.AppImage
