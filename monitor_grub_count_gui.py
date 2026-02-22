@@ -11,9 +11,11 @@ Threading model:
   never blocks, so the window stays responsive at all times.
 """
 
+import json
 import queue
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk, filedialog
 from importlib.metadata import version, PackageNotFoundError
 
@@ -35,6 +37,8 @@ from tomi3_ram import (
 # Keep well below POLL_INTERVAL so updates feel instant.
 _QUEUE_CHECK_MS = 50
 
+_CONFIG_PATH = Path.home() / ".config" / "tomi3-grub-counter" / "config.json"
+
 
 class GrubMonitorApp(tk.Tk):
 
@@ -46,9 +50,10 @@ class GrubMonitorApp(tk.Tk):
 
         self._result_queue = queue.Queue()
         self._stop_event   = threading.Event()
+        self._last_count   = None
 
         self._build_ui()
-        self.count_var.set(self._read_file_value())
+        self._load_config()
 
         self._worker = threading.Thread(target=self._poll_loop, daemon=True)
         self._worker.start()
@@ -90,18 +95,48 @@ class GrubMonitorApp(tk.Tk):
         )
         ttk.Button(bot, text="...", width=3, command=self._browse_file).pack(side=tk.LEFT)
 
-    # ── GUI-thread helpers ────────────────────────────────────────────────────
+        # ── Format string row ─────────────────────────────────────────────────
+        fmt = ttk.Frame(self, padding=(8, 0, 8, 8))
+        fmt.pack(fill=tk.X)
 
-    def _read_file_value(self):
-        """Read the last known count from the output file, or '?' if unavailable."""
+        ttk.Label(fmt, text="Format:").pack(side=tk.LEFT)
+
+        self.format_var = tk.StringVar(value="Grub Count: {count}")
+        ttk.Entry(fmt, textvariable=self.format_var, width=28).pack(
+            side=tk.LEFT, padx=(4, 4), fill=tk.X, expand=True
+        )
+        ttk.Label(fmt, text="{count}", foreground="gray").pack(side=tk.LEFT)
+
+    # ── Config persistence ────────────────────────────────────────────────────
+
+    def _load_config(self):
         try:
-            with open(self.file_var.get(), "r") as f:
-                content = f.read().strip()
-                if content:
-                    return content
+            data = json.loads(_CONFIG_PATH.read_text())
+            if "write" in data:
+                self.write_var.set(data["write"])
+            if "file" in data:
+                self.file_var.set(data["file"])
+            if "format" in data:
+                self.format_var.set(data["format"])
+            if "last_count" in data and data["last_count"] is not None:
+                self._last_count = data["last_count"]
+                self.count_var.set(str(self._last_count))
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    def _save_config(self):
+        try:
+            _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _CONFIG_PATH.write_text(json.dumps({
+                "write":      self.write_var.get(),
+                "file":       self.file_var.get(),
+                "format":     self.format_var.get(),
+                "last_count": self._last_count,
+            }, indent=2))
         except OSError:
             pass
-        return "?"
+
+    # ── GUI-thread helpers ────────────────────────────────────────────────────
 
     def _browse_file(self):
         path = filedialog.asksaveasfilename(
@@ -130,7 +165,8 @@ class GrubMonitorApp(tk.Tk):
         if kind == "status":
             self.status_var.set(msg["text"])
             if msg.get("reset_display"):
-                self.count_var.set(self._read_file_value())
+                display = str(self._last_count) if self._last_count is not None else "?"
+                self.count_var.set(display)
 
         elif kind == "count":
             value   = msg["value"]
@@ -138,12 +174,16 @@ class GrubMonitorApp(tk.Tk):
             display = str(value) if value is not None else "?"
             self.count_var.set(display)
             if changed:
+                if value is not None:
+                    self._last_count = value
+                    self._save_config()
                 if msg.get("status"):
                     self.status_var.set(msg["status"])
                 if value is not None and self.write_var.get():
                     try:
+                        content = self.format_var.get().format(count=display)
                         with open(self.file_var.get(), "w") as f:
-                            f.write(display)
+                            f.write(content)
                     except OSError as e:
                         self.status_var.set(f"Cannot write file: {e}")
 
@@ -209,7 +249,7 @@ class GrubMonitorApp(tk.Tk):
             if value is None:
                 status = "Count not found (game not in episode 3?)"
             elif changed:
-                status = f"Connected. Grub count: {value}"
+                status = f"Connected."
             else:
                 status = None
 
@@ -226,6 +266,7 @@ class GrubMonitorApp(tk.Tk):
 
     def destroy(self):
         self._stop_event.set()
+        self._save_config()
         super().destroy()
 
 
