@@ -44,12 +44,16 @@ monitor_grub_count                   # poll every second, write to grub_count.tx
 monitor_grub_count --output <file>   # write to a custom file instead
 monitor_grub_count --once            # print grub count once and exit (no file written)
 monitor_grub_count --verbose         # print debug info about candidate nodes
+monitor_grub_count --no-preserve-on-loading-zero
+                                   # disable preserving the stored count during loading
 monitor_grub_count --help            # show all options
 ```
 
 If the game is not running when the script starts, it will wait and retry every second until the process appears. Press **Ctrl+C** to cancel the wait.
 
 The current grub count is written to `grub_count.txt` in the working directory whenever it changes. Point an OBS Text source at that file.
+
+By default, the CLI preserves the previous stored count while the game is loading if the live read temporarily comes back as `0` or unknown (`?`). This avoids replacing a valid OBS counter with a loading-state value. Use `--no-preserve-on-loading-zero` to disable that behavior.
 
 ### How It Works
 
@@ -101,6 +105,8 @@ monitor_grub_count_gui
 - The grub count is displayed live in the window; the tool waits automatically if the game is not yet running
 - Use the **Write to file** checkbox to enable or disable writing the count to a file for OBS
 - The output path defaults to `grub_count.txt` in the working directory; use **…** to browse for a different path
+
+- The **Preserve stored count while loading** checkbox keeps showing the last known count when the live read is temporarily `0` or unknown (`?`) during game startup/loading
 
 ## extract_grub_count_from_save - Save File Reader
 
