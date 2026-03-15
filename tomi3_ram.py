@@ -232,6 +232,39 @@ def read_count_at(handle, node_addr):
     return value if value <= COUNT_MAX else None
 
 
+def is_plausible_count(value, last_value=None):
+    """Return True when a cached count is safe to trust without a full rescan."""
+    return value is not None and (
+        last_value is None or (last_value <= value <= last_value + 1)
+    )
+
+
+def read_cached_live_count(handle, cached_node_addr=None, last_value=None):
+    """Return a cached live count tuple when the cached node is still trustworthy."""
+    # A live 0 is ambiguous because dead nodes can also read as 0, so rescan.
+    if cached_node_addr is None or last_value == 0:
+        return None
+
+    value = read_count_at(handle, cached_node_addr)
+    if not is_plausible_count(value, last_value):
+        return None
+
+    return value, cached_node_addr
+
+
+def read_live_count(handle, last_value=None, cached_node_addr=None, verbose=False):
+    """
+    Read the live grub count using a cached node address when it remains plausible.
+    Falls back to a full scan if the cache is missing, unsafe to trust, or stale.
+    Returns (value, node_addr).
+    """
+    cached_result = read_cached_live_count(handle, cached_node_addr, last_value)
+    if cached_result is not None:
+        return cached_result
+
+    return scan_for_count(handle, verbose)
+
+
 def scan_for_count(handle, verbose=False):
     """
     Scan all readable memory for nGrubsCollected nodes.

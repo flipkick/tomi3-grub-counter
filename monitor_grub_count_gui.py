@@ -11,25 +11,33 @@ Threading model:
   never blocks, so the window stays responsive at all times.
 """
 
+import argparse
 import json
 import queue
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import ttk, filedialog
+from tkinter import filedialog, ttk
+
 try:
     from _version import __version__
 except ImportError:
     try:
         from importlib.metadata import version, PackageNotFoundError
+
         __version__ = version("tomi3-grub-counter")
     except PackageNotFoundError:
         __version__ = "?"
 
 from tomi3_ram import (
-    PROCESS_NAME, DEFAULT_OUTPUT_FILE, POLL_INTERVAL,
-    find_pid, open_process, close_process, is_process_alive,
-    scan_for_count, read_count_at,
+    PROCESS_NAME,
+    DEFAULT_OUTPUT_FILE,
+    POLL_INTERVAL,
+    find_pid,
+    open_process,
+    close_process,
+    is_process_alive,
+    read_live_count,
 )
 
 # How often the GUI thread drains the result queue (ms).
@@ -40,7 +48,6 @@ _CONFIG_PATH = Path.home() / ".config" / "tomi3-grub-counter" / "config.json"
 
 
 class GrubMonitorApp(tk.Tk):
-
     def __init__(self):
         super().__init__()
         self.title(f"Tales of Monkey Island 3 - Grub Count Monitor  v{__version__}")
@@ -48,8 +55,8 @@ class GrubMonitorApp(tk.Tk):
         self.minsize(300, 200)
 
         self._result_queue = queue.Queue()
-        self._stop_event   = threading.Event()
-        self._last_count   = None
+        self._stop_event = threading.Event()
+        self._last_count = None
 
         self._build_ui()
         self._load_config()
@@ -58,10 +65,8 @@ class GrubMonitorApp(tk.Tk):
         self._worker.start()
         self._check_queue()
 
-    # ── UI ────────────────────────────────────────────────────────────────────
-
     def _build_ui(self):
-        # ── Count display ─────────────────────────────────────────────────────
+        # Count display
         disp = ttk.Frame(self, padding=(16, 16, 16, 8))
         disp.pack(fill=tk.BOTH, expand=True)
 
@@ -75,13 +80,13 @@ class GrubMonitorApp(tk.Tk):
             anchor=tk.CENTER,
         ).pack(expand=True, fill=tk.BOTH)
 
-        # ── Status bar ────────────────────────────────────────────────────────
+        # Status bar
         self.status_var = tk.StringVar(value=f"Waiting for {PROCESS_NAME}...")
         status = ttk.Frame(self, padding=(8, 0, 8, 4))
         status.pack(fill=tk.X)
         ttk.Label(status, textvariable=self.status_var, anchor=tk.W).pack(fill=tk.X)
 
-        # ── Output file row ───────────────────────────────────────────────────
+        # Output file row
         bot = ttk.Frame(self, padding=(8, 0, 8, 8))
         bot.pack(fill=tk.X)
 
@@ -94,7 +99,7 @@ class GrubMonitorApp(tk.Tk):
         )
         ttk.Button(bot, text="...", width=3, command=self._browse_file).pack(side=tk.LEFT)
 
-        # ── Format string row ─────────────────────────────────────────────────
+        # Format string row
         fmt = ttk.Frame(self, padding=(8, 0, 8, 8))
         fmt.pack(fill=tk.X)
 
@@ -106,7 +111,17 @@ class GrubMonitorApp(tk.Tk):
         )
         ttk.Label(fmt, text="{count}", foreground="gray").pack(side=tk.LEFT)
 
-    # ── Config persistence ────────────────────────────────────────────────────
+        # Startup zero handling row
+        zero_row = ttk.Frame(self, padding=(8, 0, 8, 8))
+        zero_row.pack(fill=tk.X)
+
+        self.preserve_on_loading_zero_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            zero_row,
+            text="Preserve stored count while loading (ignore live 0)",
+            variable=self.preserve_on_loading_zero_var,
+            command=self._save_config,
+        ).pack(side=tk.LEFT)
 
     def _load_config(self):
         try:
@@ -117,6 +132,8 @@ class GrubMonitorApp(tk.Tk):
                 self.file_var.set(data["file"])
             if "format" in data:
                 self.format_var.set(data["format"])
+            if "preserve_on_loading_zero" in data:
+                self.preserve_on_loading_zero_var.set(data["preserve_on_loading_zero"])
             if "last_count" in data and data["last_count"] is not None:
                 self._last_count = data["last_count"]
                 self.count_var.set(str(self._last_count))
@@ -126,16 +143,20 @@ class GrubMonitorApp(tk.Tk):
     def _save_config(self):
         try:
             _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            _CONFIG_PATH.write_text(json.dumps({
-                "write":      self.write_var.get(),
-                "file":       self.file_var.get(),
-                "format":     self.format_var.get(),
-                "last_count": self._last_count,
-            }, indent=2))
+            _CONFIG_PATH.write_text(
+                json.dumps(
+                    {
+                        "write": self.write_var.get(),
+                        "file": self.file_var.get(),
+                        "format": self.format_var.get(),
+                        "preserve_on_loading_zero": self.preserve_on_loading_zero_var.get(),
+                        "last_count": self._last_count,
+                    },
+                    indent=2,
+                )
+            )
         except OSError:
             pass
-
-    # ── GUI-thread helpers ────────────────────────────────────────────────────
 
     def _browse_file(self):
         path = filedialog.asksaveasfilename(
@@ -168,10 +189,23 @@ class GrubMonitorApp(tk.Tk):
                 self.count_var.set(display)
 
         elif kind == "count":
-            value   = msg["value"]
+            value = msg["value"]
             changed = msg["changed"]
+
+            preserve_zero = (
+                self.preserve_on_loading_zero_var.get()
+                and value == 0
+                and self._last_count is not None
+                and self._last_count > 0
+            )
+
+            if preserve_zero:
+                self.count_var.set(str(self._last_count))
+                return
+
             display = str(value) if value is not None else "?"
             self.count_var.set(display)
+
             if changed:
                 if value is not None:
                     self._last_count = value
@@ -186,69 +220,75 @@ class GrubMonitorApp(tk.Tk):
                     except OSError as e:
                         self.status_var.set(f"Cannot write file: {e}")
 
-    # ── Worker thread ─────────────────────────────────────────────────────────
-
     def _poll_loop(self):
         """Background thread: connect, scan, repeat. Never touches the UI directly."""
-        handle           = None
-        last             = None
+        handle = None
+        last = None
         cached_node_addr = None
 
         def put(msg):
             self._result_queue.put(msg)
 
         while not self._stop_event.is_set():
-
-            # ── (Re-)connect ──────────────────────────────────────────────────
+            # (Re-)connect
             if handle is None:
                 pid = find_pid(PROCESS_NAME)
                 if pid is None:
-                    put({"kind": "status",
-                         "text": f"Waiting for {PROCESS_NAME}...",
-                         "reset_display": True})
+                    put(
+                        {
+                            "kind": "status",
+                            "text": f"Waiting for {PROCESS_NAME}...",
+                            "reset_display": True,
+                        }
+                    )
                     self._stop_event.wait(POLL_INTERVAL)
                     continue
                 try:
-                    handle           = open_process(pid)
-                    last             = None
+                    handle = open_process(pid)
+                    last = None
                     cached_node_addr = None
-                    put({"kind": "status",
-                         "text": f"Connected to {PROCESS_NAME} (pid={pid})"})
+                    put(
+                        {
+                            "kind": "status",
+                            "text": f"Connected to {PROCESS_NAME} (pid={pid})",
+                        }
+                    )
                 except OSError as e:
                     put({"kind": "status", "text": f"Cannot open process: {e}"})
                     self._stop_event.wait(POLL_INTERVAL)
                     continue
 
-            # ── Liveness check ────────────────────────────────────────────────
+            # Liveness check
             if not is_process_alive(handle):
                 close_process(handle)
-                handle           = None
-                last             = None
+                handle = None
+                last = None
                 cached_node_addr = None
-                put({"kind": "status",
-                     "text": f"Game exited. Waiting for {PROCESS_NAME}...",
-                     "reset_display": True})
+                put(
+                    {
+                        "kind": "status",
+                        "text": f"Game exited. Waiting for {PROCESS_NAME}...",
+                        "reset_display": True,
+                    }
+                )
                 continue
 
-            # ── Read count (cached fast path or full scan) ────────────────────
+            # Read count (cached fast path or full scan)
             try:
-                if cached_node_addr is not None and last != 0:
-                    value = read_count_at(handle, cached_node_addr)
-                    if value is None or (
-                        last is not None and (value < last or value > last + 1)
-                    ):
-                        value, cached_node_addr = scan_for_count(handle)
-                else:
-                    value, cached_node_addr = scan_for_count(handle)
+                value, cached_node_addr = read_live_count(
+                    handle,
+                    last_value=last,
+                    cached_node_addr=cached_node_addr,
+                )
             except Exception:
-                value            = None
+                value = None
                 cached_node_addr = None
 
             changed = value != last
             if value is None:
                 status = "Count not found (game not in episode 3?)"
             elif changed:
-                status = f"Connected."
+                status = "Connected."
             else:
                 status = None
 
@@ -257,22 +297,18 @@ class GrubMonitorApp(tk.Tk):
 
             self._stop_event.wait(POLL_INTERVAL)
 
-        # ── Cleanup ───────────────────────────────────────────────────────────
+        # Cleanup
         if handle is not None:
             close_process(handle)
-
-    # ── Shutdown ──────────────────────────────────────────────────────────────
 
     def destroy(self):
         self._stop_event.set()
         self._save_config()
         super().destroy()
 
-
 def main():
     app = GrubMonitorApp()
     app.mainloop()
-
 
 if __name__ == "__main__":
     main()

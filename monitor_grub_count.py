@@ -31,49 +31,91 @@ Strategy:
          node that also reads 0)
 
 Usage:
-  python monitor_grub_count.py                        -> poll every second, write to grub_count.txt
-  python monitor_grub_count.py --output <file>        -> write to a custom file instead
-  python monitor_grub_count.py --once                 -> print count once
-  python monitor_grub_count.py --verbose              -> same, with debug output
+  python monitor_grub_count.py                               -> poll every second, write to grub_count.txt
+  python monitor_grub_count.py --output <file>              -> write to a custom file instead
+  python monitor_grub_count.py --once                        -> print count once
+  python monitor_grub_count.py --verbose                     -> same, with debug output
+  default behavior: startup-zero protection enabled
+  python monitor_grub_count.py --no-preserve-on-loading-zero -> disable startup-zero protection
 """
 
 import sys
 import time
+from pathlib import Path
+
 try:
     from _version import __version__
 except ImportError:
     try:
         from importlib.metadata import version, PackageNotFoundError
+
         __version__ = version("tomi3-grub-counter")
     except PackageNotFoundError:
         __version__ = "?"
 
 from tomi3_ram import (
-    PROCESS_NAME, DEFAULT_OUTPUT_FILE, POLL_INTERVAL,
-    find_pid, open_process, close_process, is_process_alive,
-    scan_for_count, read_count_at,
+    PROCESS_NAME,
+    DEFAULT_OUTPUT_FILE,
+    POLL_INTERVAL,
+    find_pid,
+    open_process,
+    close_process,
+    is_process_alive,
+    scan_for_count,
+    read_live_count,
 )
+
+
+def _read_stored_count(path):
+    try:
+        text = Path(path).read_text().strip()
+    except OSError:
+        return None
+    if text.isdigit():
+        return int(text)
+    return None
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(
         description="Read the nGrubsCollected count live from the running game process. "
-                    "Waits for the game to launch if it is not already running. "
-                    "Works on Windows (native) and Linux (Proton/Wine).",
+        "Waits for the game to launch if it is not already running. "
+        "Works on Windows (native) and Linux (Proton/Wine).",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s v{__version__}")
-    parser.add_argument("--output", metavar="FILE", default=DEFAULT_OUTPUT_FILE,
-                        help=f"write count to FILE instead of {DEFAULT_OUTPUT_FILE}")
-    parser.add_argument("--once", action="store_true",
-                        help="print the count once and exit (no file written)")
-    parser.add_argument("--verbose", action="store_true",
-                        help="print debug info about candidate nodes")
+    parser.add_argument(
+        "--output",
+        metavar="FILE",
+        default=DEFAULT_OUTPUT_FILE,
+        help=f"write count to FILE instead of {DEFAULT_OUTPUT_FILE}",
+    )
+    parser.add_argument(
+        "--once", action="store_true", help="print the count once and exit (no file written)"
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="print debug info about candidate nodes"
+    )
+    parser.set_defaults(preserve_on_loading_zero=True)
+    parser.add_argument(
+        "--preserve-on-loading-zero",
+        action="store_true",
+        dest="preserve_on_loading_zero",
+        help="keep the previous stored count when a live read is 0 during game startup/loading (default: enabled)",
+    )
+    parser.add_argument(
+        "--no-preserve-on-loading-zero",
+        action="store_false",
+        dest="preserve_on_loading_zero",
+        help="disable startup-zero protection and allow writing live 0 values during loading",
+    )
     args = parser.parse_args()
 
-    once        = args.once
-    verbose     = args.verbose
+    once = args.once
+    verbose = args.verbose
     output_file = args.output
+    preserve_on_loading_zero = args.preserve_on_loading_zero
 
     pid = find_pid(PROCESS_NAME)
     if pid is None:
@@ -104,29 +146,55 @@ def main():
                 print(f"Grub Count: {value}")
         else:
             print(f"Counting grubs... writing to {output_file} (Ctrl+C to stop)")
-            last = None
+
+            last_seen = None
+            last_written = None
+            if preserve_on_loading_zero:
+                last_written = _read_stored_count(output_file)
+                if last_written is not None and last_written > 0:
+                    print(f"Preserving stored count while loading zeros: {last_written}")
+
             cached_node_addr = None
+            holding_loading_zero = False
+
             while True:
                 try:
-                    if cached_node_addr is not None and last != 0:  # last==0: can't trust cache (dead node also reads 0)
-                        value = read_count_at(handle, cached_node_addr)
-                        if value is None or (last is not None and (value < last or value > last + 1)):
-                            # Address stale or implausible jump (save reload) -> full scan
-                            value, cached_node_addr = scan_for_count(handle, verbose)
-                    else:
-                        value, cached_node_addr = scan_for_count(handle, verbose)
+                    value, cached_node_addr = read_live_count(
+                        handle,
+                        last_value=last_seen,
+                        cached_node_addr=cached_node_addr,
+                        verbose=verbose,
+                    )
                 except FileNotFoundError:
                     print("\nGame process ended. Exiting.")
                     break
+
                 if not is_process_alive(handle):
                     print("\nGame process ended. Exiting.")
                     break
-                if value != last:
-                    last = value
+
+                if (
+                    preserve_on_loading_zero
+                    and value == 0
+                    and last_written not in (None, 0)
+                ):
+                    if not holding_loading_zero:
+                        print(f"Grub Count: loading (live 0, keeping {last_written})")
+                        holding_loading_zero = True
+                    last_seen = value
+                    time.sleep(POLL_INTERVAL)
+                    continue
+
+                holding_loading_zero = False
+
+                if value != last_written:
+                    last_written = value
                     display = str(value) if value is not None else "?"
                     print(f"Grub Count: {display}")
                     with open(output_file, "w") as f:
                         f.write(display)
+
+                last_seen = value
                 time.sleep(POLL_INTERVAL)
     finally:
         close_process(handle)
@@ -134,3 +202,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
