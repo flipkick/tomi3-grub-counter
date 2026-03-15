@@ -175,11 +175,12 @@ def main():
 
                 if (
                     preserve_on_loading_zero
-                    and value == 0
+                    and value in (None, 0)
                     and last_written not in (None, 0)
                 ):
                     if not holding_loading_zero:
-                        print(f"Grub Count: loading (live 0, keeping {last_written})")
+                        live_state = "0" if value == 0 else "?"
+                        print(f"Grub Count: loading (live {live_state}, keeping {last_written})")
                         holding_loading_zero = True
                     last_seen = value
                     time.sleep(POLL_INTERVAL)

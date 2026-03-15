@@ -194,7 +194,7 @@ class GrubMonitorApp(tk.Tk):
 
             preserve_zero = (
                 self.preserve_on_loading_zero_var.get()
-                and value == 0
+                and value in (None, 0)
                 and self._last_count is not None
                 and self._last_count > 0
             )
